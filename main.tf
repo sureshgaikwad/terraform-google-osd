@@ -18,9 +18,6 @@ provider "google" {
 resource "shell_script" "cluster_install" {
   count = var.only_deploy_infra_no_osd ? 0 : 1
 
-  # As currently we do not have a osdongcp_redhatopenshift_cluster style resource, this handles
-  # the installation of the cluster after terraform has finished. Improvement for the future!
-
   lifecycle_commands {
     create = templatefile(
       "${path.module}/templates/clusterinstall.tftpl",
@@ -34,6 +31,7 @@ resource "shell_script" "cluster_install" {
         gcp_authentication_type = var.gcp_authentication_type
         wif_config_name         = "${var.clustername}-wif"
         osd_gcp_private         = var.osd_gcp_private
+        osd_gcp_psc            = var.osd_gcp_psc
     })
     delete = templatefile(
       "${path.module}/templates/clusterdestroy.tftpl",
@@ -49,7 +47,9 @@ resource "shell_script" "cluster_install" {
 
   depends_on = [
     google_compute_router_nat.nat-master,
-    shell_script.wif_create
+    shell_script.wif_create,
+    google_compute_forwarding_rule.psc_google_apis,  
+    google_dns_record_set.psc_googleapis_a           
   ]
 }
 

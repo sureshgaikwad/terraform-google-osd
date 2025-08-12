@@ -25,3 +25,14 @@ output "compute_subnet" {
 output "gcp_region" {
   value = var.gcp_region
 }
+
+output "psc_subnet" {
+  value = var.osd_gcp_psc ? google_compute_subnetwork.psc_subnet[0].name : null
+}
+
+output "psc_endpoints" {
+  value = var.osd_gcp_psc ? {
+    for k, v in google_compute_address.psc_endpoint_addresses : 
+    k => v.address
+  } : {}
+}

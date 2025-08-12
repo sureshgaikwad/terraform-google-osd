@@ -102,3 +102,28 @@ variable "gcp_authentication_type" {
     error_message = "Valid values for gcp_authentication_type are either 'service_account' or workload_identity_federation'."
   }
 }
+
+variable "osd_gcp_psc" {
+  description = "If set to true, deploy OSD with Private Service Connect (PSC) enabled"
+  type        = bool
+  default     = false
+}
+
+variable "psc_subnet_cidr_block" {
+  type        = string
+  description = <<EOF
+The IP address space for PSC endpoints subnet.
+Default "10.20.0.0/28"
+EOF
+  default     = "10.20.0.0/28"
+}
+
+variable "enable_psc_endpoints" {
+  description = "List of GCP services to create PSC endpoints for"
+  type        = list(string)
+  default     = [
+    "storage.googleapis.com",
+    "container.googleapis.com",
+    "compute.googleapis.com"
+  ]
+}
