@@ -29,8 +29,10 @@ if [[ '${osd_gcp_private}' == 'true' ]]; then
   network_flags="$network_flags --private"
 fi
 
+# PSC configuration - use the correct flag
+psc_flags=""
 if [[ '${osd_gcp_psc}' == 'true' ]]; then
-  network_flags="$network_flags --private-service-connect"
+  psc_flags="--psc-subnet ${psc_subnet_name}"
 fi
 
 # Create the cluster
@@ -42,4 +44,5 @@ ocm create cluster ${cluster_name} --provider gcp \
                 --compute-subnet ${compute_subnet} \
                 "$authentication_param_name" "$authentication_param_value" \
                 $network_flags \
+                $psc_flags \
                 --ccs

@@ -113,9 +113,10 @@ variable "psc_subnet_cidr_block" {
   type        = string
   description = <<EOF
 The IP address space for PSC endpoints subnet.
-Default "10.20.0.0/28"
+Must be /29 or larger and within the Machine CIDR range.
+Default "10.0.0.248/29"
 EOF
-  default     = "10.20.0.0/28"
+  default     = "10.0.0.248/29"  # FIXED: Must be within Machine CIDR!
 }
 
 variable "enable_psc_endpoints" {
