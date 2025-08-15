@@ -48,9 +48,9 @@ resource "shell_script" "cluster_install" {
 
   depends_on = [
     google_compute_router_nat.nat-master,
-    shell_script.wif_create
-#    google_compute_global_forwarding_rule.psc_google_apis,  
-#    google_dns_record_set.psc_googleapis_a           
+    shell_script.wif_create,
+    google_compute_global_forwarding_rule.psc_google_apis,  
+    google_dns_record_set.psc_googleapis_a           
   ]
 }
 

@@ -124,3 +124,95 @@ Then:
 ```bash
 make destroy
 ```
+
+
+## OSD in GCP with Private Service Connect (PSC)
+
+[Private Service Connect (PSC)](https://docs.openshift.com/dedicated/osd_gcp_clusters/creating-a-gcp-psc-enabled-private-cluster.html) is Google Cloud's security-enhanced networking feature that enables private communication between services across different projects or organizations within GCP. With PSC, you can deploy OpenShift Dedicated clusters in a completely private environment without any public-facing cloud resources.
+
+### Prerequisites
+
+* PSC is only available on OpenShift Dedicated version 4.17 and later
+* Must use Customer Cloud Subscription (CCS) model
+* Requires Workload Identity Federation (WIF) or Service Account authentication
+* Cloud Identity-Aware Proxy API must be enabled in your GCP project
+
+### Setup PSC-enabled Private Cluster
+
+* Copy and modify the PSC example tfvars file:
+
+```bash
+cp -pr configuration/tfvars/terraform.tfvars.psc.example configuration/tfvars/terraform.tfvars
+```
+
+* Key configuration in your terraform.tfvars:
+
+```bash
+# enable private cluster with PSC
+osd_gcp_private = true
+osd_gcp_psc = true
+
+# PSC requires WIF authentication (recommended)
+gcp_authentication_type = "workload_identity_federation"
+
+# enable bastion for private cluster access
+enable_osd_gcp_bastion = true
+
+# IMPORTANT: PSC subnet MUST be within Machine CIDR range
+# example with proper CIDR allocation:
+master_cidr_block = "10.0.0.0/19"      # 10.0.0.0 - 10.0.31.255
+worker_cidr_block = "10.0.32.0/19"     # 10.0.32.0 - 10.0.63.255
+psc_subnet_cidr_block = "10.0.64.0/29" # Within Machine CIDR (10.0.0.0/17)
+```
+
+* Deploy the infrastructure and cluster:
+
+```bash
+make all
+```
+
+### Accessing the PSC Private Cluster
+
+Once the cluster is ready (State: ready), access it through the bastion:
+
+```bash
+# SSH to bastion
+gcloud compute ssh ${CLUSTERNAME}-bastion-vm --zone=${GCP_ZONE} --project=${GCP_PROJECT}
+
+# install OCM CLI on bastion
+wget https://github.com/openshift-online/ocm-cli/releases/download/v0.1.73/ocm-linux-amd64
+sudo mv ocm-linux-amd64 /usr/bin/ocm
+sudo chmod +x /usr/bin/ocm
+
+# login to OCM and configure identity provider via console.redhat.com
+ocm login
+
+# Access your cluster
+oc login https://api.${CLUSTERNAME}.<domain>.openshiftapps.com:6443
+```
+
+### Important PSC Notes
+
+**CIDR Planning is Critical**:
+- PSC subnet MUST be within Machine CIDR range (master + worker combined)
+- PSC subnet requires /29 or larger
+- Plan your CIDR allocations carefully - overlapping ranges will cause deployment failures
+
+**Network Access**:
+- OAuth endpoints only accessible from private network (not from internet)
+- Configure identity provider before attempting cluster access (do this via console)
+- Bastion host is required for private cluster management
+
+
+### Architecture Details
+
+With PSC enabled:
+- Red Hat SRE access is provided through PSC service attachments
+- No public IPs or NAT gateways required
+- All traffic remains within Google's network
+- Cluster API server only accessible via private endpoints
+- Google APIs accessed through private PSC endpoints instead of public internet
+
+For more details, see:
+- [Private Service Connect overview](https://docs.openshift.com/dedicated/osd_gcp_clusters/creating-a-gcp-psc-enabled-private-cluster.html)
+- [OpenShift Dedicated on GCP architecture models](https://docs.redhat.com/en/documentation/openshift_dedicated/4/html/architecture/osd-architecture-models-gcp)

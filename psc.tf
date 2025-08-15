@@ -9,26 +9,25 @@ resource "google_compute_subnetwork" "psc_subnet" {
   project       = var.gcp_project
 }
 
-# resource "google_compute_global_address" "psc_google_apis" {
-#  count         = var.osd_gcp_private && var.osd_gcp_psc ? 1 : 0
-#  name          = "${var.clustername}-psc-google-apis-ip"
-#  purpose       = "PRIVATE_SERVICE_CONNECT"
-#  address_type  = "INTERNAL"
-#  address       = "10.0.1.100"
-#  prefix_length = 24
-#  network       = google_compute_network.vpc_network.id
-#  project       = var.gcp_project
-#}
+resource "google_compute_global_forwarding_rule" "psc_google_apis" {
+  count                 = var.osd_gcp_private && var.osd_gcp_psc ? 1 : 0
+  name                  = "pscgapis"  
+  target                = "all-apis"
+  network               = google_compute_network.vpc_network.id
+  ip_address            = google_compute_global_address.psc_google_apis[0].id
+  load_balancing_scheme = ""
+  project               = var.gcp_project
+}
 
-# resource "google_compute_global_forwarding_rule" "psc_google_apis" {
-#  count                 = var.osd_gcp_private && var.osd_gcp_psc ? 1 : 0
-#  name                  = "${var.clustername}-psc-google-apis"
-#  target                = "all-apis"
-#  network               = google_compute_network.vpc_network.id
-#  ip_address            = google_compute_global_address.psc_google_apis[0].id
-#  load_balancing_scheme = ""
-#  project               = var.gcp_project
-#}
+resource "google_compute_global_address" "psc_google_apis" {
+  count         = var.osd_gcp_private && var.osd_gcp_psc ? 1 : 0
+  name          = "pscgapisip"  
+  purpose       = "PRIVATE_SERVICE_CONNECT"
+  address_type  = "INTERNAL"
+  address       = "10.0.255.100"  # outside all subnets
+  network       = google_compute_network.vpc_network.id
+  project       = var.gcp_project
+}
 
 resource "google_dns_managed_zone" "psc_googleapis" {
   count       = var.osd_gcp_private && var.osd_gcp_psc ? 1 : 0
@@ -46,15 +45,15 @@ resource "google_dns_managed_zone" "psc_googleapis" {
   }
 }
 
-#resource "google_dns_record_set" "psc_googleapis_a" {
-#  count        = var.osd_gcp_private && var.osd_gcp_psc ? 1 : 0
-#  name         = "*.${google_dns_managed_zone.psc_googleapis[0].dns_name}"
-#  type         = "A"
-#  ttl          = 300
-#  managed_zone = google_dns_managed_zone.psc_googleapis[0].name
-#  rrdatas      = [google_compute_global_address.psc_google_apis[0].address]
-#  project      = var.gcp_project
-#}
+resource "google_dns_record_set" "psc_googleapis_a" {
+  count        = var.osd_gcp_private && var.osd_gcp_psc ? 1 : 0
+  name         = "*.${google_dns_managed_zone.psc_googleapis[0].dns_name}"
+  type         = "A"
+  ttl          = 300
+  managed_zone = google_dns_managed_zone.psc_googleapis[0].name
+  rrdatas      = [google_compute_global_address.psc_google_apis[0].address]
+  project      = var.gcp_project
+}
 
 resource "google_dns_managed_zone" "psc_gcr" {
   count       = var.osd_gcp_private && var.osd_gcp_psc ? 1 : 0
@@ -72,12 +71,12 @@ resource "google_dns_managed_zone" "psc_gcr" {
   }
 }
 
-#resource "google_dns_record_set" "psc_gcr_a" {
-#  count        = var.osd_gcp_private && var.osd_gcp_psc ? 1 : 0
-#  name         = "*.${google_dns_managed_zone.psc_gcr[0].dns_name}"
-#  type         = "A"
-#  ttl          = 300
-#  managed_zone = google_dns_managed_zone.psc_gcr[0].name
-#  rrdatas      = [google_compute_global_address.psc_google_apis[0].address]
-#  project      = var.gcp_project
-#}
+resource "google_dns_record_set" "psc_gcr_a" {
+  count        = var.osd_gcp_private && var.osd_gcp_psc ? 1 : 0
+  name         = "*.${google_dns_managed_zone.psc_gcr[0].dns_name}"
+  type         = "A"
+  ttl          = 300
+  managed_zone = google_dns_managed_zone.psc_gcr[0].name
+  rrdatas      = [google_compute_global_address.psc_google_apis[0].address]
+  project      = var.gcp_project
+}

@@ -116,7 +116,7 @@ The IP address space for PSC endpoints subnet.
 Must be /29 or larger and within the Machine CIDR range.
 Default "10.0.0.248/29"
 EOF
-  default     = "10.0.0.248/29"  # FIXED: Must be within Machine CIDR!
+  default     = "10.0.0.248/29"  
 }
 
 variable "enable_psc_endpoints" {

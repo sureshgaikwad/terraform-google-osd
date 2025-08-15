@@ -1,29 +1,16 @@
-gcp_project = "your-project-id"
-
-clustername = "osd-psc-cluster"
-
+gcp_project = "PROJECT-NAME-HERE"
+clustername = "CLUSTER-NAME-HERE"
 vpc_routing_mode = "REGIONAL"
-
-master_cidr_block = "10.0.0.0/17"
-
-worker_cidr_block = "10.0.128.0/17"
-
+master_cidr_block = "10.0.0.0/19"      # 10.0.0.0 - 10.0.31.255
+worker_cidr_block = "10.0.32.0/19"     # 10.0.32.0 - 10.0.63.255
+psc_subnet_cidr_block = "10.0.64.0/29" # 10.0.64.0 - 10.0.64.7 (within Machine CIDR)
 bastion_cidr_block = "10.10.0.0/24"
-
-psc_subnet_cidr_block = "10.20.0.0/28"
-
 gcp_region = "us-west1"
-
 gcp_zone = "us-west1-a"
-
 osd_gcp_psc = true
-
 osd_gcp_private = true
-
 enable_osd_gcp_bastion = true
-
 gcp_authentication_type = "workload_identity_federation"
-
 enable_psc_endpoints = [
   "storage.googleapis.com",
   "container.googleapis.com",
@@ -31,5 +18,4 @@ enable_psc_endpoints = [
   "logging.googleapis.com",
   "monitoring.googleapis.com"
 ]
-
 only_deploy_infra_no_osd = false
