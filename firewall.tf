@@ -1,4 +1,5 @@
 # firewall rules for PSC
+
 resource "google_compute_firewall" "psc_allow_https" {
   count    = var.osd_gcp_psc ? 1 : 0
   name     = "${var.clustername}-psc-allow-https"
@@ -66,6 +67,7 @@ resource "google_compute_firewall" "psc_internal_all" {
   direction = "INGRESS"
 }
 
+# uses IP ranges instead of tags to avoid mismatch with OSD-created instances
 resource "google_compute_firewall" "bastion_to_cluster" {
   count    = var.enable_osd_gcp_bastion && var.osd_gcp_private ? 1 : 0
   name     = "${var.clustername}-bastion-to-cluster"
@@ -80,10 +82,37 @@ resource "google_compute_firewall" "bastion_to_cluster" {
 
   source_ranges = [var.bastion_cidr_block]
   
+  destination_ranges = [
+    var.master_cidr_block,
+    var.worker_cidr_block
+  ]
+  
   direction = "INGRESS"
   
-  target_tags = [
-    "${var.clustername}-master",
-    "${var.clustername}-worker"
+}
+
+# additional rule for cluster internal communication
+resource "google_compute_firewall" "cluster_internal" {
+  count    = var.osd_gcp_private ? 1 : 0
+  name     = "${var.clustername}-cluster-internal"
+  network  = google_compute_network.vpc_network.id
+  project  = var.gcp_project
+  priority = 900
+
+  allow {
+    protocol = "all"
+  }
+
+  # allow all communication between master and worker nodes
+  source_ranges = [
+    var.master_cidr_block,
+    var.worker_cidr_block
   ]
+  
+  destination_ranges = [
+    var.master_cidr_block,
+    var.worker_cidr_block
+  ]
+  
+  direction = "INGRESS"
 }

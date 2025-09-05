@@ -27,6 +27,7 @@ resource "shell_script" "cluster_install" {
         control_plane_subnet    = google_compute_subnetwork.vpc_subnetwork_masters.name
         compute_subnet          = google_compute_subnetwork.vpc_subnetwork_workers.name
         gcp_region              = var.gcp_region
+        gcp_zone                = var.gcp_zone 
         gcp_sa_file_loc         = var.gcp_sa_file_loc
         gcp_authentication_type = var.gcp_authentication_type
         wif_config_name         = "${var.clustername}-wif"
