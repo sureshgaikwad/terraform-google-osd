@@ -17,7 +17,7 @@ resource "google_compute_firewall" "bastion-fw-rules" {
 
 data "google_client_openid_userinfo" "me" {}
 
-# Generate an bastion instance in the Bastion VPC subnet and install utils and ssh-keys 
+# Generate an bastion instance in the Bastion VPC subnet and install utils and ssh-keys
 resource "google_compute_instance" "bastion" {
   count        = var.enable_osd_gcp_bastion ? 1 : 0
   name         = "${var.clustername}-bastion-vm"
@@ -26,15 +26,24 @@ resource "google_compute_instance" "bastion" {
 
   boot_disk {
     initialize_params {
-      image = "centos-cloud/centos-stream-8"
+      # Change to Ubuntu or RHEL
+      image = "ubuntu-os-cloud/ubuntu-2204-lts"
+      # Or use: "rhel-cloud/rhel-8"
     }
   }
 
   # TODO: Add Squid Server?
+
+  # Update the startup script for Ubuntu
   metadata = {
     ssh-keys       = "${split("@", data.google_client_openid_userinfo.me.email)[0]}:${file(var.bastion_key_loc)}"
     startup-script = <<-EOF
-    sudo dnf install telnet wget bash-completion -y
+    #!/bin/bash
+    # For Ubuntu:
+    sudo apt-get update
+    sudo apt-get install -y telnet wget bash-completion
+    # For RHEL/CentOS, keep the original:
+    # sudo dnf install telnet wget bash-completion -y
     wget https://mirror.openshift.com/pub/openshift-v4/clients/ocp/latest/openshift-client-linux.tar.gz
     tar -xvf openshift-client-linux.tar.gz
     sudo mv oc kubectl /usr/bin/
