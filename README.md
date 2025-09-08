@@ -337,3 +337,5 @@ With PSC enabled:
 For more details, see:
 - [Private Service Connect overview](https://docs.openshift.com/dedicated/osd_gcp_clusters/creating-a-gcp-psc-enabled-private-cluster.html)
 - [OpenShift Dedicated on GCP architecture models](https://docs.redhat.com/en/documentation/openshift_dedicated/4/html/architecture/osd-architecture-models-gcp)
+- [Configuring IDP](https://docs.redhat.com/en/documentation/openshift_dedicated/4/html/authentication_and_authorization/sd-configuring-identity-providers)
+- [Managing administration roles and users](https://docs.redhat.com/en/documentation/openshift_dedicated/4/html/authentication_and_authorization/osd-admin-roles)
