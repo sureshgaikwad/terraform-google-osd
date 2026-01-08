@@ -34,6 +34,7 @@ resource "shell_script" "cluster_install" {
         osd_gcp_private         = var.osd_gcp_private
         osd_gcp_psc             = var.osd_gcp_psc
         psc_subnet_name         = var.osd_gcp_psc ? google_compute_subnetwork.psc_subnet[0].name : ""
+        gcp_availability_zones  = var.gcp_availability_zones
     })
     delete = templatefile(
       "${path.module}/templates/clusterdestroy.tftpl",

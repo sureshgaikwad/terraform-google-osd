@@ -1,0 +1,64 @@
+# Terraform variables for OpenShift Dedicated cluster with PSC and WIF
+# Cluster: sgaikwad
+# Region: asia-south1
+# Type: Private cluster with Private Service Connect (PSC)
+# Authentication: Workload Identity Federation (WIF)
+
+gcp_project = "mobb-demo"
+
+clustername = "sgaikwad"
+
+vpc_routing_mode = "REGIONAL"
+
+# CIDR blocks for master/control plane subnet
+# Range: 10.0.0.0 - 10.0.31.255 (8192 IPs)
+master_cidr_block = "10.0.0.0/19"
+
+# CIDR blocks for worker/compute subnet
+# Range: 10.0.32.0 - 10.0.63.255 (8192 IPs)
+worker_cidr_block = "10.0.32.0/19"
+
+# PSC subnet CIDR - MUST be within Machine CIDR range (10.0.0.0/17)
+# Range: 10.0.64.0 - 10.0.64.7 (8 IPs, /29)
+psc_subnet_cidr_block = "10.0.64.0/29"
+
+# Bastion subnet CIDR (separate from cluster network)
+bastion_cidr_block = "10.10.0.0/24"
+
+# GCP region and zone configuration
+gcp_region = "asia-south1"
+gcp_zone = "asia-south1-a"
+
+# Enable Private Service Connect (PSC)
+osd_gcp_psc = true
+
+# Enable private cluster
+osd_gcp_private = true
+
+# Enable bastion host for private cluster access
+enable_osd_gcp_bastion = true
+
+# Authentication method: Workload Identity Federation
+gcp_authentication_type = "workload_identity_federation"
+
+# PSC endpoints for Google Cloud services
+enable_psc_endpoints = [
+  "storage.googleapis.com",
+  "container.googleapis.com",
+  "compute.googleapis.com",
+  "logging.googleapis.com",
+  "monitoring.googleapis.com"
+]
+
+# Deploy cluster (set to true to deploy, false to only deploy infrastructure)
+only_deploy_infra_no_osd = false
+
+# Optional: Multi-AZ deployment (uncomment to enable)
+# For multi-AZ, ensure compute nodes is multiple of 3 (minimum 9)
+# gcp_availability_zones = "asia-south1-a,asia-south1-b,asia-south1-c"
+
+# Optional: Custom SSH key location for bastion (if not using default)
+# bastion_key_loc = "~/.ssh/id_rsa.pub"
+
+# Optional: Bastion machine type (default: e2-micro)
+# bastion_machine_type = "e2-micro"

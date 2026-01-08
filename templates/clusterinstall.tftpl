@@ -50,6 +50,19 @@ if [[ '${osd_gcp_psc}' == 'true' ]]; then
   psc_flags="--psc-subnet ${psc_subnet_name}"
 fi
 
+# Multi-AZ configuration
+availability_zones_flags=""
+compute_nodes_flag=""
+multi_az_flag=""
+if [[ -n '${gcp_availability_zones}' && '${gcp_availability_zones}' != '' ]]; then
+  # OCM requires --multi-az flag when using multiple availability zones
+  multi_az_flag="--multi-az"
+  # OCM expects comma-separated zones as a single flag value
+  availability_zones_flags="--availability-zones '${gcp_availability_zones}'"
+  # For multi-AZ, ensure compute nodes is multiple of 3 (minimum 9 for CCS)
+  compute_nodes_flag="--compute-nodes 9"
+fi
+
 # Create the cluster
 ocm create cluster ${cluster_name} --provider gcp \
                 --debug \
@@ -60,6 +73,9 @@ ocm create cluster ${cluster_name} --provider gcp \
                 "$authentication_param_name" "$authentication_param_value" \
                 $network_flags \
                 $psc_flags \
+                $multi_az_flag \
+                $availability_zones_flags \
+                $compute_nodes_flag \
                 --ccs
 
 

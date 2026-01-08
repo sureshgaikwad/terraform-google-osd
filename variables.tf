@@ -128,3 +128,14 @@ variable "enable_psc_endpoints" {
     "compute.googleapis.com"
   ]
 }
+
+variable "gcp_availability_zones" {
+  type        = string
+  description = <<EOF
+Comma-separated list of GCP availability zones for multi-AZ deployment.
+Example: "us-west1-a,us-west1-b,us-west1-c"
+If not specified, cluster will be deployed in single zone (gcp_zone).
+For multi-AZ, typically use 3 zones and ensure compute-nodes is multiple of 3.
+EOF
+  default     = ""
+}
