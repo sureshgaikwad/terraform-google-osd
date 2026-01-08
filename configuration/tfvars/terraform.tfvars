@@ -1,29 +1,43 @@
+
 gcp_project = "mobb-demo"
 
-clustername = "emea-osd-gcp"
+clustername = "sgaikwad-new"
 
 vpc_routing_mode = "REGIONAL"
 
-master_cidr_block = "10.0.0.0/17"
+master_cidr_block = "10.0.0.0/19"
 
-worker_cidr_block = "10.0.128.0/17"
+worker_cidr_block = "10.0.32.0/19"
+
+psc_subnet_cidr_block = "10.0.64.0/29"
 
 bastion_cidr_block = "10.10.0.0/24"
 
-gcp_region = "europe-west4"
+gcp_region = "asia-south1"
+gcp_zone = "asia-south1-a"
 
-gcp_zone = "europe-west4-a"
+osd_gcp_psc = true
 
-gcp_azs = [
-  "us-west-1a",
-  "us-west-1b",
-  "us-west-1c"
+osd_gcp_private = true
+
+enable_osd_gcp_bastion = true
+
+gcp_authentication_type = "workload_identity_federation"
+
+enable_psc_endpoints = [
+  "storage.googleapis.com",
+  "container.googleapis.com",
+  "compute.googleapis.com",
+  "logging.googleapis.com",
+  "monitoring.googleapis.com"
 ]
 
-enable_osd_gcp_bastion = false
+only_deploy_infra_no_osd = false
 
-osd_gcp_private = false
+gcp_availability_zones = "asia-south1-a,asia-south1-b,asia-south1-c"
 
-bastion_machine_type = "e2-small"
+# Optional: Custom SSH key location for bastion (if not using default)
+bastion_key_loc = "~/.ssh/id_ed25519.pub"
 
-only_deploy_infra_no_osd = true
+# Optional: Bastion machine type (default: e2-micro)
+bastion_machine_type = "e2-micro"

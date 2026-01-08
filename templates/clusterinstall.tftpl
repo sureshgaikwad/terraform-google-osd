@@ -57,26 +57,43 @@ multi_az_flag=""
 if [[ -n '${gcp_availability_zones}' && '${gcp_availability_zones}' != '' ]]; then
   # OCM requires --multi-az flag when using multiple availability zones
   multi_az_flag="--multi-az"
-  # OCM expects comma-separated zones as a single flag value
-  availability_zones_flags="--availability-zones '${gcp_availability_zones}'"
+  # OCM expects comma-separated zones as a single flag value (without quotes in the flag itself)
+  availability_zones_flags="--availability-zones"
+  availability_zones_value='${gcp_availability_zones}'
   # For multi-AZ, ensure compute nodes is multiple of 3 (minimum 9 for CCS)
   compute_nodes_flag="--compute-nodes 9"
+else
+  availability_zones_value=""
 fi
 
 # Create the cluster
-ocm create cluster ${cluster_name} --provider gcp \
-                --debug \
-                --vpc-name ${vpc_name} \
-                --region ${gcp_region} \
-                --control-plane-subnet ${control_plane_subnet} \
-                --compute-subnet ${compute_subnet} \
-                "$authentication_param_name" "$authentication_param_value" \
-                $network_flags \
-                $psc_flags \
-                $multi_az_flag \
-                $availability_zones_flags \
-                $compute_nodes_flag \
-                --ccs
+# Redirect debug output to stderr to avoid buffering issues with Terraform shell provider
+if [[ -n "$availability_zones_value" ]]; then
+  # Multi-AZ cluster creation
+  ocm create cluster ${cluster_name} --provider gcp \
+                  --vpc-name ${vpc_name} \
+                  --region ${gcp_region} \
+                  --control-plane-subnet ${control_plane_subnet} \
+                  --compute-subnet ${compute_subnet} \
+                  "$authentication_param_name" "$authentication_param_value" \
+                  $network_flags \
+                  $psc_flags \
+                  $multi_az_flag \
+                  $availability_zones_flags "$availability_zones_value" \
+                  $compute_nodes_flag \
+                  --ccs 2>&1
+else
+  # Single-AZ cluster creation
+  ocm create cluster ${cluster_name} --provider gcp \
+                  --vpc-name ${vpc_name} \
+                  --region ${gcp_region} \
+                  --control-plane-subnet ${control_plane_subnet} \
+                  --compute-subnet ${compute_subnet} \
+                  "$authentication_param_name" "$authentication_param_value" \
+                  $network_flags \
+                  $psc_flags \
+                  --ccs 2>&1
+fi
 
 
 
