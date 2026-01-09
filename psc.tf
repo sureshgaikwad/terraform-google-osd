@@ -1,19 +1,24 @@
 
+# PSC Subnet - only created when:
+# - PSC is enabled (osd_gcp_psc = true)
+# - Private cluster (osd_gcp_private = true)
+# - NOT using existing VPC (use_existing_vpc = false)
 resource "google_compute_subnetwork" "psc_subnet" {
-  count         = var.osd_gcp_private && var.osd_gcp_psc ? 1 : 0
+  count         = var.osd_gcp_private && var.osd_gcp_psc && !var.use_existing_vpc ? 1 : 0
   name          = "${var.clustername}-psc-subnet"
   ip_cidr_range = var.psc_subnet_cidr_block 
   region        = var.gcp_region
-  network       = google_compute_network.vpc_network.id
+  network       = local.vpc_id
   purpose       = "PRIVATE_SERVICE_CONNECT"
   project       = var.gcp_project
 }
 
 resource "google_compute_global_forwarding_rule" "psc_google_apis" {
   count                 = var.osd_gcp_private && var.osd_gcp_psc ? 1 : 0
+  # Name must be 1-20 characters for PSC Google APIs
   name                  = "pscgapis"  
   target                = "all-apis"
-  network               = google_compute_network.vpc_network.id
+  network               = local.vpc_id
   ip_address            = google_compute_global_address.psc_google_apis[0].id
   load_balancing_scheme = ""
   project               = var.gcp_project
@@ -25,7 +30,7 @@ resource "google_compute_global_address" "psc_google_apis" {
   purpose       = "PRIVATE_SERVICE_CONNECT"
   address_type  = "INTERNAL"
   address       = "10.0.255.100"  # outside all subnets
-  network       = google_compute_network.vpc_network.id
+  network       = local.vpc_id
   project       = var.gcp_project
 }
 
@@ -40,7 +45,7 @@ resource "google_dns_managed_zone" "psc_googleapis" {
 
   private_visibility_config {
     networks {
-      network_url = google_compute_network.vpc_network.id
+      network_url = local.vpc_id
     }
   }
 }
@@ -66,7 +71,7 @@ resource "google_dns_managed_zone" "psc_gcr" {
 
   private_visibility_config {
     networks {
-      network_url = google_compute_network.vpc_network.id
+      network_url = local.vpc_id
     }
   }
 }

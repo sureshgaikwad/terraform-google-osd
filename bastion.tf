@@ -1,20 +1,3 @@
-
-# create ssh bastion firewall rules 
-resource "google_compute_firewall" "bastion-fw-rules" {
-  count   = var.enable_osd_gcp_bastion ? 1 : 0
-  name    = "${var.clustername}-fw-allow-bastion"
-  network = google_compute_network.vpc_network.id
-
-  allow {
-    protocol = "tcp"
-    ports    = ["22"]
-  }
-
-  // Allow traffic from everywhere to instances with an bastion tag
-  source_ranges = ["0.0.0.0/0"]
-  target_tags   = ["${var.clustername}-bastion-vm"]
-}
-
 data "google_client_openid_userinfo" "me" {}
 
 # Generate an bastion instance in the Bastion VPC subnet and install utils and ssh-keys
@@ -63,6 +46,4 @@ resource "google_compute_instance" "bastion" {
   # Add labels
 
   tags = ["${var.clustername}-bastion-vm"]
-
-  depends_on = [google_compute_firewall.bastion-fw-rules]
 }

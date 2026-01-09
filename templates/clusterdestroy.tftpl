@@ -7,11 +7,53 @@ ocm > /dev/null 2>&1 || echo "Please ensure ocm is installed"
 # Check for jq
 jq > /dev/null 2>&1 || echo "Please ensure jq is installed"
 
-# Check for OCM connectivity
-ocm get /api/clusters_mgmt/v1/clusters --parameter search="name like '${cluster_name}%'" | jq -r '.items[].name' || echo 'Cluster not found. This is bad'
+# Function to get cluster ID using OCM API with server-side filtering (fast)
+get_cluster_id() {
+    ocm get /api/clusters_mgmt/v1/clusters --parameter search="name = '${cluster_name}'" 2>/dev/null | jq -r '.items[0].id // empty'
+}
+
+# Get cluster ID
+CLUSTER_ID=$(get_cluster_id)
+
+if [ -z "$CLUSTER_ID" ]; then
+    echo "Cluster ${cluster_name} not found. Nothing to delete."
+    exit 0
+fi
+
+echo "Found cluster ID: $CLUSTER_ID"
+echo "Deleting cluster ${cluster_name}..."
 
 # Delete the cluster
-ocm delete cluster $(ocm get /api/clusters_mgmt/v1/clusters --parameter search="name like '${cluster_name}%'" | jq -r '.items[].id')
+ocm delete cluster $CLUSTER_ID
 
-# Wait
-sleep 60
+# Wait for cluster deletion to complete
+echo "Waiting for cluster deletion to complete..."
+MAX_WAIT=1800  # 30 minutes max wait
+WAIT_TIME=0
+CHECK_INTERVAL=30  # Check every 30 seconds
+
+while [ $$WAIT_TIME -lt $$MAX_WAIT ]; do
+    CURRENT_ID=$(get_cluster_id)
+    if [ -z "$CURRENT_ID" ]; then
+        echo "Cluster ${cluster_name} has been deleted successfully."
+        exit 0
+    fi
+    
+    STATE=$(ocm get /api/clusters_mgmt/v1/clusters/$$CLUSTER_ID 2>/dev/null | jq -r '.state // "deleting"')
+    echo "[$$(date '+%H:%M:%S')] Cluster state: $$STATE (waited $${WAIT_TIME}s)"
+    
+    if [ "$$STATE" == "error" ]; then
+        echo "Cluster deletion failed. Proceeding with infrastructure cleanup..."
+        break
+    fi
+    
+    sleep $$CHECK_INTERVAL
+    WAIT_TIME=$$((WAIT_TIME + CHECK_INTERVAL))
+done
+
+if [ $$WAIT_TIME -ge $$MAX_WAIT ]; then
+    echo "Warning: Cluster deletion is taking longer than expected. Proceeding with infrastructure cleanup."
+    echo "You may need to manually verify cluster deletion at https://console.redhat.com"
+fi
+
+echo "Cluster deletion initiated. Proceeding with infrastructure cleanup..."

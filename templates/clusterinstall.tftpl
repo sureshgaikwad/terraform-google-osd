@@ -25,45 +25,87 @@ jq > /dev/null 2>&1 || echo "Please ensure jq is installed"
 # Check for OCM connectivity
 ocm get /api/clusters_mgmt/v1/clusters --parameter search="name like '${cluster_name}%'" | jq -re '.items[].name' && (echo 'Cluster seems to exist... please clean it up first or select a new name.'; exit 1; )
 
-if [[ '${gcp_authentication_type}' == 'service_account' ]]; then
+if [[ "${gcp_authentication_type}" == "service_account" ]]; then
   # Check if the GCP SA is valid
   ## Get private key ID
   export PRIV_KEY_ID=$(cat ${gcp_sa_file_loc} | jq -r '.private_key_id')
-  curl -s $(cat ${gcp_sa_file_loc} | jq -r '.client_x509_cert_url') | jq -re --arg PRIV_KEY_ID "$PRIV_KEY_ID" '.[$PRIV_KEY_ID]' || echo 'Your service account specified at ${gcp_sa_file_loc} seems to be invalid or expired. Please check and try again'
+  curl -s $(cat ${gcp_sa_file_loc} | jq -r '.client_x509_cert_url') | jq -re --arg PRIV_KEY_ID "$PRIV_KEY_ID" '.[$PRIV_KEY_ID]' || echo "Your service account specified at ${gcp_sa_file_loc} seems to be invalid or expired. Please check and try again"
 
-  authentication_param_name='--service-account-file'
-  authentication_param_value='${gcp_sa_file_loc}'
+  authentication_param_name="--service-account-file"
+  authentication_param_value="${gcp_sa_file_loc}"
 else # workload identity federation
-  authentication_param_name='--wif-config'
-  authentication_param_value='${wif_config_name}'
+  authentication_param_name="--wif-config"
+  authentication_param_value="${wif_config_name}"
 fi
 
 # Set network configuration flags
 network_flags=""
-if [[ '${osd_gcp_private}' == 'true' ]]; then
+if [[ "${osd_gcp_private}" == "true" ]]; then
   network_flags="$network_flags --private"
 fi
 
 # PSC configuration - use the correct flag
 psc_flags=""
-if [[ '${osd_gcp_psc}' == 'true' ]]; then
+if [[ "${osd_gcp_psc}" == "true" ]]; then
   psc_flags="--psc-subnet ${psc_subnet_name}"
+fi
+
+# Proxy configuration (for private VPC without NAT)
+proxy_flags=""
+if [[ -n "${http_proxy}" && "${http_proxy}" != "" ]]; then
+  proxy_flags="$proxy_flags --http-proxy ${http_proxy}"
+fi
+if [[ -n "${https_proxy}" && "${https_proxy}" != "" ]]; then
+  proxy_flags="$proxy_flags --https-proxy ${https_proxy}"
+fi
+if [[ -n "${no_proxy}" && "${no_proxy}" != "" ]]; then
+  proxy_flags="$proxy_flags --no-proxy ${no_proxy}"
+fi
+if [[ -n "${additional_trust_bundle}" && "${additional_trust_bundle}" != "" ]]; then
+  proxy_flags="$proxy_flags --additional-trust-bundle-file ${additional_trust_bundle}"
+fi
+
+# Custom domain prefix
+domain_flags=""
+if [[ -n "${domain_prefix}" && "${domain_prefix}" != "" ]]; then
+  domain_flags="--domain-prefix ${domain_prefix}"
 fi
 
 # Multi-AZ configuration
 availability_zones_flags=""
 compute_nodes_flag=""
 multi_az_flag=""
-if [[ -n '${gcp_availability_zones}' && '${gcp_availability_zones}' != '' ]]; then
+if [[ -n "${gcp_availability_zones}" && "${gcp_availability_zones}" != "" ]]; then
   # OCM requires --multi-az flag when using multiple availability zones
   multi_az_flag="--multi-az"
   # OCM expects comma-separated zones as a single flag value (without quotes in the flag itself)
   availability_zones_flags="--availability-zones"
-  availability_zones_value='${gcp_availability_zones}'
-  # For multi-AZ, ensure compute nodes is multiple of 3 (minimum 9 for CCS)
-  compute_nodes_flag="--compute-nodes 9"
+  availability_zones_value="${gcp_availability_zones}"
+  
+  # Count number of zones
+  IFS=',' read -ra ZONES <<< "${gcp_availability_zones}"
+  ZONE_COUNT=$${#ZONES[@]}
+  
+  # Determine compute nodes count
+  if [ -z "${compute_nodes_count}" ] || [ "${compute_nodes_count}" = "" ]; then
+    # Default: minimum for multi-AZ CCS (1 per zone)
+    COMPUTE_NODES=$((ZONE_COUNT * 1))
+  else
+    COMPUTE_NODES="${compute_nodes_count}"
+    # Validate it's a multiple of zone count
+    REMAINDER=$((COMPUTE_NODES % ZONE_COUNT))
+    if [ $REMAINDER -ne 0 ]; then
+      echo "ERROR: compute_nodes_count ($COMPUTE_NODES) must be a multiple of zone count ($ZONE_COUNT)"
+      exit 1
+    fi
+  fi
+  compute_nodes_flag="--compute-nodes $COMPUTE_NODES"
 else
   availability_zones_value=""
+  # Single-AZ: use specified count or omit flag (OCM will use default minimum)
+  if [ -n "${compute_nodes_count}" ] && [ "${compute_nodes_count}" != "" ]; then
+    compute_nodes_flag="--compute-nodes ${compute_nodes_count}"
+  fi
 fi
 
 # Create the cluster
@@ -78,6 +120,8 @@ if [[ -n "$availability_zones_value" ]]; then
                   "$authentication_param_name" "$authentication_param_value" \
                   $network_flags \
                   $psc_flags \
+                  $proxy_flags \
+                  $domain_flags \
                   $multi_az_flag \
                   $availability_zones_flags "$availability_zones_value" \
                   $compute_nodes_flag \
@@ -92,6 +136,8 @@ else
                   "$authentication_param_name" "$authentication_param_value" \
                   $network_flags \
                   $psc_flags \
+                  $proxy_flags \
+                  $domain_flags \
                   --ccs 2>&1
 fi
 
@@ -103,14 +149,20 @@ echo "Cluster creation initiated!"
 echo "This typically takes 30-45 minutes"
 echo "======================================"
 
-# Get cluster ID
+# Function to get cluster ID using OCM API with server-side filtering
+# This is much faster than 'ocm list clusters | grep' which downloads all clusters
+get_cluster_id() {
+    ocm get /api/clusters_mgmt/v1/clusters --parameter search="name = '${cluster_name}'" 2>/dev/null | jq -r '.items[0].id // empty'
+}
+
+# Get cluster ID using server-side search (fast, doesn't hang)
 sleep 5  # Give OCM a moment to register the cluster
-CLUSTER_ID=$(ocm list clusters --no-headers --columns id,name | grep "${cluster_name}" | awk '{print $1}')
+CLUSTER_ID=$(get_cluster_id)
 
 if [ -z "$CLUSTER_ID" ]; then
     echo "WARNING: Could not immediately find cluster ID. Waiting..."
     sleep 30
-    CLUSTER_ID=$(ocm list clusters --no-headers --columns id,name | grep "${cluster_name}" | awk '{print $1}')
+    CLUSTER_ID=$(get_cluster_id)
 fi
 
 if [ -z "$CLUSTER_ID" ]; then
@@ -121,13 +173,15 @@ fi
 echo "Cluster ID: $CLUSTER_ID"
 echo "Monitoring installation progress..."
 
-# Monitor installation
+# Monitor installation using direct API calls (faster than ocm list)
 MAX_ATTEMPTS=45  # 45 * 2 minutes = 90 minutes
 ATTEMPT=0
 
 while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
-    STATE=$(ocm get /api/clusters_mgmt/v1/clusters/$CLUSTER_ID | jq -r '.state')
-    PROGRESS=$(ocm get /api/clusters_mgmt/v1/clusters/$CLUSTER_ID | jq -r '.status.description // "Installing"')
+    # Use single API call to get cluster details
+    CLUSTER_INFO=$(ocm get /api/clusters_mgmt/v1/clusters/$CLUSTER_ID 2>/dev/null)
+    STATE=$(echo "$CLUSTER_INFO" | jq -r '.state')
+    PROGRESS=$(echo "$CLUSTER_INFO" | jq -r '.status.description // "Installing"')
     
     echo "[$(date '+%H:%M:%S')] State: $STATE | Progress: $PROGRESS"
     
@@ -136,8 +190,8 @@ while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
         echo "======================================"
         echo "Cluster ${cluster_name} is READY!"
         echo "======================================"
-        API_URL=$(ocm get /api/clusters_mgmt/v1/clusters/$CLUSTER_ID | jq -r '.api.url')
-        CONSOLE_URL=$(ocm get /api/clusters_mgmt/v1/clusters/$CLUSTER_ID | jq -r '.console.url')
+        API_URL=$(echo "$CLUSTER_INFO" | jq -r '.api.url')
+        CONSOLE_URL=$(echo "$CLUSTER_INFO" | jq -r '.console.url')
         echo "API URL: $API_URL"
         echo "Console URL: $CONSOLE_URL"
         echo ""
@@ -146,7 +200,7 @@ while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
         break
     elif [ "$STATE" == "error" ]; then
         echo "Cluster installation failed!"
-        ERROR_MSG=$(ocm get /api/clusters_mgmt/v1/clusters/$CLUSTER_ID | jq -r '.status.provision_error_message // .status.description')
+        ERROR_MSG=$(echo "$CLUSTER_INFO" | jq -r '.status.provision_error_message // .status.description')
         echo "Error: $ERROR_MSG"
         exit 1
     fi

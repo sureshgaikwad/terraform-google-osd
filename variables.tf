@@ -21,8 +21,79 @@ variable "vpc_routing_mode" {
 variable "clustername" {
   type        = string
   description = "The name of the cluster."
-
 }
+
+# ============================================
+# Existing VPC Configuration
+# ============================================
+
+variable "use_existing_vpc" {
+  type        = bool
+  description = <<EOF
+Whether to use an existing VPC or create a new one.
+
+Set to false (default): Terraform creates a new VPC and all subnets.
+Set to true: Use existing VPC and subnets specified by the existing_* variables.
+
+When using existing VPC, you must also set:
+  - existing_vpc_name
+  - existing_master_subnet_name
+  - existing_worker_subnet_name
+  - existing_psc_subnet_name (if osd_gcp_psc = true)
+  - existing_router_name (optional, for NAT gateway)
+EOF
+  default     = false
+}
+
+variable "existing_vpc_name" {
+  type        = string
+  description = <<EOF
+Name of the existing VPC to use. Required when use_existing_vpc = true.
+Example: "my-existing-vpc"
+EOF
+  default     = ""
+}
+
+variable "existing_master_subnet_name" {
+  type        = string
+  description = <<EOF
+Name of the existing master/control-plane subnet. Required when use_existing_vpc = true.
+The subnet must have private_ip_google_access enabled.
+Example: "my-master-subnet"
+EOF
+  default     = ""
+}
+
+variable "existing_worker_subnet_name" {
+  type        = string
+  description = <<EOF
+Name of the existing worker/compute subnet. Required when use_existing_vpc = true.
+The subnet must have private_ip_google_access enabled.
+Example: "my-worker-subnet"
+EOF
+  default     = ""
+}
+
+variable "existing_psc_subnet_name" {
+  type        = string
+  description = <<EOF
+Name of the existing PSC subnet. Required when use_existing_vpc = true AND osd_gcp_psc = true.
+The subnet must have purpose = PRIVATE_SERVICE_CONNECT.
+Example: "my-psc-subnet"
+EOF
+  default     = ""
+}
+
+variable "existing_router_name" {
+  type        = string
+  description = <<EOF
+Name of the existing Cloud Router. Optional when use_existing_vpc = true.
+If not specified and enable_nat_gateway = true, a new router will be created.
+Example: "my-router"
+EOF
+  default     = ""
+}
+
 
 variable "master_cidr_block" {
   type        = string
@@ -103,6 +174,32 @@ variable "gcp_authentication_type" {
   }
 }
 
+variable "use_existing_wif" {
+  type        = bool
+  description = <<EOF
+Whether to use an existing WIF configuration or create a new one.
+
+Set to false (default): Terraform creates a new WIF config named "<clustername>-wif".
+Set to true: Use existing WIF config specified by existing_wif_config_name.
+
+When using existing WIF, ensure:
+  - The WIF config exists and is valid
+  - It is configured for the correct GCP project
+EOF
+  default     = false
+}
+
+variable "existing_wif_config_name" {
+  type        = string
+  description = <<EOF
+Name of the existing WIF configuration to use. Required when use_existing_wif = true.
+Example: "my-existing-wif"
+
+To list existing WIF configs: ocm gcp list wif-configs
+EOF
+  default     = ""
+}
+
 variable "osd_gcp_psc" {
   description = "If set to true, deploy OSD with Private Service Connect (PSC) enabled"
   type        = bool
@@ -136,6 +233,101 @@ Comma-separated list of GCP availability zones for multi-AZ deployment.
 Example: "us-west1-a,us-west1-b,us-west1-c"
 If not specified, cluster will be deployed in single zone (gcp_zone).
 For multi-AZ, typically use 3 zones and ensure compute-nodes is multiple of 3.
+EOF
+  default     = ""
+}
+
+variable "enable_nat_gateway" {
+  type        = bool
+  description = <<EOF
+Whether to create NAT gateways for internet connectivity.
+
+Set to true (default): Creates Cloud NAT for master and worker subnets.
+                       Use for standalone deployments with direct internet access.
+
+Set to false: No NAT gateways created. VPC is completely private.
+              Use when internet connectivity is provided via a landing zone
+              (hub-spoke architecture) or other network topology.
+
+IMPORTANT: When set to false, the following prerequisites must be met:
+  - Network connectivity to Red Hat container registries must be preconfigured
+    (registry.redhat.io, quay.io, registry.connect.redhat.com)
+  - Network connectivity to OCM API (api.openshift.com) must be available
+  - This is typically achieved through VPC peering to a landing zone,
+    Shared VPC, VPN, or Cloud Interconnect with appropriate routing.
+EOF
+  default     = true
+}
+
+variable "compute_nodes_count" {
+  type        = number
+  description = <<EOF
+Number of worker/compute nodes to provision.
+For single-zone clusters: minimum 2 nodes on CCS, 4 on Red Hat infra.
+For multi-AZ clusters: minimum 3 nodes on CCS (1 per zone), 9 on Red Hat infra (3 per zone).
+Multi-AZ requires compute nodes to be a multiple of the number of zones.
+If not specified, defaults to minimum required based on deployment type (9 for multi-AZ, OCM default for single-AZ).
+EOF
+  default     = null
+  validation {
+    condition     = try(var.compute_nodes_count == null, false) || try(var.compute_nodes_count > 0, true)
+    error_message = "compute_nodes_count must be a positive number if specified."
+  }
+}
+
+# ============================================
+# Proxy Configuration (for private VPC without NAT)
+# ============================================
+
+variable "http_proxy" {
+  type        = string
+  description = <<EOF
+HTTP proxy URL for cluster egress traffic.
+Required when deploying to a private VPC without NAT gateway.
+Format: http://<proxy-ip>:<port>
+Example: http://10.100.0.10:3128
+EOF
+  default     = ""
+}
+
+variable "https_proxy" {
+  type        = string
+  description = <<EOF
+HTTPS proxy URL for cluster egress traffic.
+Required when deploying to a private VPC without NAT gateway.
+Format: http://<proxy-ip>:<port> (note: still uses http:// scheme)
+Example: http://10.100.0.10:3128
+EOF
+  default     = ""
+}
+
+variable "no_proxy" {
+  type        = string
+  description = <<EOF
+Comma-separated list of CIDRs to bypass the proxy.
+Note: OCM only accepts valid CIDRs or full domain names (not .svc or .cluster.local).
+Default includes private networks and metadata server.
+EOF
+  default     = "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,169.254.169.254"
+}
+
+variable "additional_trust_bundle" {
+  type        = string
+  description = <<EOF
+Path to a PEM-encoded CA certificate bundle for the proxy.
+Only required if the proxy uses a custom/self-signed certificate.
+EOF
+  default     = ""
+}
+
+variable "domain_prefix" {
+  type        = string
+  description = <<EOF
+Custom domain prefix for the cluster.
+This sets the first part of your cluster's domain name.
+Example: If you set "myapp", your cluster URL will be:
+  https://api.myapp.<random>.p1.openshiftapps.com
+If not set, OCM uses the cluster name as prefix.
 EOF
   default     = ""
 }

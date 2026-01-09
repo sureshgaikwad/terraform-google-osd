@@ -1,13 +1,13 @@
 output "vpc_name" {
-  value = google_compute_network.vpc_network.name
+  value = local.vpc_name
 }
 
 output "control_plane_subnet" {
-  value = google_compute_subnetwork.vpc_subnetwork_masters.name
+  value = local.master_subnet_name
 }
 
 output "compute_subnet" {
-  value = google_compute_subnetwork.vpc_subnetwork_workers.name
+  value = local.worker_subnet_name
 }
 
 output "gcp_region" {
@@ -15,7 +15,12 @@ output "gcp_region" {
 }
 
 output "psc_subnet" {
-  value = var.osd_gcp_psc ? google_compute_subnetwork.psc_subnet[0].name : null
+  value = var.osd_gcp_psc ? local.psc_subnet_name : null
+}
+
+output "use_existing_vpc" {
+  value       = var.use_existing_vpc
+  description = "Whether existing VPC was used"
 }
 
 # output "psc_google_apis_ip" {
