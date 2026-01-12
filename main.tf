@@ -41,6 +41,7 @@ resource "shell_script" "cluster_install" {
         no_proxy                = var.no_proxy
         additional_trust_bundle = var.additional_trust_bundle
         domain_prefix           = var.domain_prefix
+        compute_machine_type    = var.compute_machine_type
     })
     delete = templatefile(
       "${path.module}/templates/clusterdestroy.tftpl",

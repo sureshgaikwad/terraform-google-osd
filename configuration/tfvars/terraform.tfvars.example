@@ -92,8 +92,8 @@ enable_nat_gateway = true
 # HTTPS proxy URL (usually same as http_proxy)
 # https_proxy = "http://10.100.0.10:3128"
 
-# Domains/CIDRs to bypass proxy (comma-separated, required when using proxy)
-# no_proxy = "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,169.254.169.254"
+# Domains/CIDRs to bypass proxy (comma-separated)
+# no_proxy = ".cluster.local,.svc,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,169.254.169.254"
 
 # Path to CA bundle if proxy uses custom/self-signed certificate
 # additional_trust_bundle = "/path/to/ca-bundle.pem"
@@ -109,7 +109,8 @@ osd_gcp_private = false
 osd_gcp_psc = false
 
 # PSC endpoint IP address (must be within Machine CIDR but outside all subnets)
-# Adjust this to match your network range (e.g., if using 10.92.x.x, use 10.92.255.100)
+# This IP is used for the Google APIs PSC endpoint
+# Example: If your subnets are in 10.0.x.x range, use something like 10.0.255.100
 # psc_endpoint_address = "10.0.255.100"
 
 # List of GCP services for PSC endpoints (when osd_gcp_psc = true)
@@ -135,6 +136,17 @@ osd_gcp_psc = false
 # Leave as null for OCM defaults
 # compute_nodes_count = 3
 
+# Compute (worker) node machine type
+# Run `ocm list machine-types --provider gcp` to see available options
+# Examples:
+#   - custom-4-32768-ext   (4 vCPU, 32GB RAM) - Default for OSD
+#   - n2-standard-4        (4 vCPU, 16GB RAM)
+#   - n2-standard-8        (8 vCPU, 32GB RAM)
+#   - n2-highmem-4         (4 vCPU, 32GB RAM)
+#   - e2-standard-4        (4 vCPU, 16GB RAM)
+# Leave empty for OCM default
+# compute_machine_type = "custom-4-32768-ext"
+
 # ============================================
 # Bastion Host Configuration
 # ============================================
@@ -147,6 +159,62 @@ bastion_machine_type = "e2-micro"
 
 # Path to SSH public key for bastion access
 bastion_key_loc = "~/.ssh/id_rsa.pub"
+
+# ============================================
+# Additional Machine Pools
+# ============================================
+# Configure additional machine pools beyond the default "worker" pool
+# Pools are created AFTER the cluster is ready
+# Run `ocm list machine-types --provider gcp` for available instance types
+
+# Example: Single additional pool with fixed replicas
+# additional_machine_pools = [
+#   {
+#     name          = "large"
+#     instance_type = "n2-standard-16"
+#     replicas      = 2
+#     labels = {
+#       "workload-type" = "large"
+#     }
+#   }
+# ]
+
+# Example: Multiple pools with autoscaling and taints
+# additional_machine_pools = [
+#   {
+#     name          = "large"
+#     instance_type = "n2-standard-16"
+#     replicas      = 2
+#     labels = {
+#       "workload-type" = "large"
+#     }
+#   },
+#   {
+#     name          = "gpu"
+#     instance_type = "n1-standard-4"
+#     min_replicas  = 1
+#     max_replicas  = 5
+#     labels = {
+#       "workload-type" = "gpu"
+#     }
+#     taints = [
+#       {
+#         key    = "nvidia.com/gpu"
+#         value  = "true"
+#         effect = "NoSchedule"
+#       }
+#     ]
+#   },
+#   {
+#     name              = "zone-a-only"
+#     instance_type     = "n2-standard-8"
+#     replicas          = 3
+#     availability_zone = "us-central1-a"  # Single zone in multi-AZ cluster
+#   }
+# ]
+
+# Default: No additional machine pools
+additional_machine_pools = []
 
 # ============================================
 # Advanced Options
@@ -249,7 +317,7 @@ only_deploy_infra_no_osd = false
 # # Proxy in Landing Zone VPC (created by setup script)
 # http_proxy                   = "http://10.100.0.10:3128"
 # https_proxy                  = "http://10.100.0.10:3128"
-# no_proxy                     = "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,169.254.169.254"
+# no_proxy                     = ".cluster.local,.svc,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,169.254.169.254"
 #
 # # Bastion will be in Landing Zone VPC
 # enable_osd_gcp_bastion       = false

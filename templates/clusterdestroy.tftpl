@@ -32,26 +32,26 @@ MAX_WAIT=1800  # 30 minutes max wait
 WAIT_TIME=0
 CHECK_INTERVAL=30  # Check every 30 seconds
 
-while [ $$WAIT_TIME -lt $$MAX_WAIT ]; do
+while [ $WAIT_TIME -lt $MAX_WAIT ]; do
     CURRENT_ID=$(get_cluster_id)
     if [ -z "$CURRENT_ID" ]; then
         echo "Cluster ${cluster_name} has been deleted successfully."
         exit 0
     fi
     
-    STATE=$(ocm get /api/clusters_mgmt/v1/clusters/$$CLUSTER_ID 2>/dev/null | jq -r '.state // "deleting"')
-    echo "[$$(date '+%H:%M:%S')] Cluster state: $$STATE (waited $${WAIT_TIME}s)"
+    STATE=$(ocm get /api/clusters_mgmt/v1/clusters/$CLUSTER_ID 2>/dev/null | jq -r '.state // "deleting"')
+    echo "[$(date '+%H:%M:%S')] Cluster state: $STATE (waited $${WAIT_TIME}s)"
     
-    if [ "$$STATE" == "error" ]; then
+    if [ "$STATE" == "error" ]; then
         echo "Cluster deletion failed. Proceeding with infrastructure cleanup..."
         break
     fi
     
-    sleep $$CHECK_INTERVAL
-    WAIT_TIME=$$((WAIT_TIME + CHECK_INTERVAL))
+    sleep $CHECK_INTERVAL
+    WAIT_TIME=$(expr $WAIT_TIME + $CHECK_INTERVAL)
 done
 
-if [ $$WAIT_TIME -ge $$MAX_WAIT ]; then
+if [ $WAIT_TIME -ge $MAX_WAIT ]; then
     echo "Warning: Cluster deletion is taking longer than expected. Proceeding with infrastructure cleanup."
     echo "You may need to manually verify cluster deletion at https://console.redhat.com"
 fi

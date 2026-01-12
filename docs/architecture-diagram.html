@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OSD on GCP - Hub-Spoke Architecture</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        h1 {
+            color: #e94560;
+            text-align: center;
+            margin-bottom: 10px;
+        }
+        h2 {
+            color: #0f3460;
+            text-align: center;
+            margin-top: 30px;
+        }
+        .subtitle {
+            color: #a0a0a0;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .diagram-container {
+            background: white;
+            border-radius: 16px;
+            padding: 30px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            margin-bottom: 30px;
+        }
+        svg {
+            width: 100%;
+            height: auto;
+        }
+        .legend {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .legend-color {
+            width: 20px;
+            height: 20px;
+            border-radius: 4px;
+        }
+        .details {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+        .details h3 {
+            color: #0f3460;
+            margin-top: 0;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        th, td {
+            padding: 10px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        th {
+            background: #0f3460;
+            color: white;
+        }
+        tr:hover {
+            background: #e8f4f8;
+        }
+        .download-btn {
+            display: inline-block;
+            background: #e94560;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 8px;
+            text-decoration: none;
+            margin: 10px;
+            cursor: pointer;
+            border: none;
+            font-size: 14px;
+        }
+        .download-btn:hover {
+            background: #c73e54;
+        }
+        .btn-container {
+            text-align: center;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔒 OpenShift Dedicated on GCP</h1>
+        <p class="subtitle">Hub-Spoke Architecture with Private Service Connect</p>
+        
+        <div class="btn-container">
+            <button class="download-btn" onclick="downloadSVG()">📥 Download SVG</button>
+            <button class="download-btn" onclick="window.print()">🖨️ Print / Save as PDF</button>
+        </div>
+
+        <div class="diagram-container">
+            <svg id="architecture-svg" viewBox="0 0 1200 800" xmlns="http://www.w3.org/2000/svg">
+                <!-- Background -->
+                <defs>
+                    <linearGradient id="hubGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" style="stop-color:#e3f2fd"/>
+                        <stop offset="100%" style="stop-color:#bbdefb"/>
+                    </linearGradient>
+                    <linearGradient id="spokeGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" style="stop-color:#fff3e0"/>
+                        <stop offset="100%" style="stop-color:#ffe0b2"/>
+                    </linearGradient>
+                    <linearGradient id="internetGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" style="stop-color:#f3e5f5"/>
+                        <stop offset="100%" style="stop-color:#e1bee7"/>
+                    </linearGradient>
+                    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+                        <feDropShadow dx="2" dy="2" stdDeviation="3" flood-opacity="0.3"/>
+                    </filter>
+                    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                        <polygon points="0 0, 10 3.5, 0 7" fill="#666"/>
+                    </marker>
+                    <marker id="arrowhead-blue" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                        <polygon points="0 0, 10 3.5, 0 7" fill="#1976d2"/>
+                    </marker>
+                    <marker id="arrowhead-green" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                        <polygon points="0 0, 10 3.5, 0 7" fill="#388e3c"/>
+                    </marker>
+                </defs>
+
+                <!-- Title -->
+                <text x="600" y="35" text-anchor="middle" font-size="24" font-weight="bold" fill="#1a237e">OSD on GCP - Hub-Spoke Private Architecture</text>
+
+                <!-- Internet Cloud -->
+                <g transform="translate(50, 80)">
+                    <ellipse cx="100" cy="60" rx="90" ry="50" fill="url(#internetGradient)" stroke="#9c27b0" stroke-width="2" filter="url(#shadow)"/>
+                    <text x="100" y="55" text-anchor="middle" font-size="14" font-weight="bold" fill="#7b1fa2">☁️ Internet</text>
+                    <text x="100" y="75" text-anchor="middle" font-size="11" fill="#666">Red Hat Registries</text>
+                </g>
+
+                <!-- User/Laptop -->
+                <g transform="translate(900, 80)">
+                    <rect x="0" y="20" width="80" height="60" rx="5" fill="#fff" stroke="#666" stroke-width="2" filter="url(#shadow)"/>
+                    <text x="40" y="55" text-anchor="middle" font-size="12" fill="#333">💻 User</text>
+                    <text x="40" y="95" text-anchor="middle" font-size="10" fill="#666">IAP Tunnel</text>
+                </g>
+
+                <!-- Landing Zone VPC (Hub) -->
+                <g transform="translate(30, 180)">
+                    <rect x="0" y="0" width="400" height="580" rx="15" fill="url(#hubGradient)" stroke="#1976d2" stroke-width="3" filter="url(#shadow)"/>
+                    <text x="200" y="30" text-anchor="middle" font-size="16" font-weight="bold" fill="#1565c0">🏢 Landing Zone VPC (Hub)</text>
+                    <text x="200" y="50" text-anchor="middle" font-size="12" fill="#1976d2">10.100.0.0/24</text>
+
+                    <!-- Subnet -->
+                    <rect x="20" y="70" width="360" height="120" rx="8" fill="#e3f2fd" stroke="#64b5f6" stroke-width="2"/>
+                    <text x="200" y="90" text-anchor="middle" font-size="12" font-weight="bold" fill="#1565c0">landing-zone-subnet</text>
+                    <text x="200" y="105" text-anchor="middle" font-size="10" fill="#666">10.100.0.0/24</text>
+
+                    <!-- Squid Proxy -->
+                    <rect x="40" y="115" width="150" height="60" rx="8" fill="#4fc3f7" stroke="#0288d1" stroke-width="2" filter="url(#shadow)"/>
+                    <text x="115" y="140" text-anchor="middle" font-size="12" font-weight="bold" fill="#01579b">🦑 Squid Proxy</text>
+                    <text x="115" y="155" text-anchor="middle" font-size="10" fill="#01579b">10.100.0.10:3128</text>
+                    <text x="115" y="168" text-anchor="middle" font-size="9" fill="#666">(Bastion Host)</text>
+
+                    <!-- Cloud Router -->
+                    <rect x="220" y="210" width="150" height="50" rx="8" fill="#81d4fa" stroke="#0288d1" stroke-width="2" filter="url(#shadow)"/>
+                    <text x="295" y="235" text-anchor="middle" font-size="12" font-weight="bold" fill="#01579b">🔀 Cloud Router</text>
+                    <text x="295" y="250" text-anchor="middle" font-size="10" fill="#666">landing-zone-router</text>
+
+                    <!-- Cloud NAT -->
+                    <rect x="220" y="280" width="150" height="50" rx="8" fill="#4dd0e1" stroke="#00acc1" stroke-width="2" filter="url(#shadow)"/>
+                    <text x="295" y="305" text-anchor="middle" font-size="12" font-weight="bold" fill="#006064">🌐 Cloud NAT</text>
+                    <text x="295" y="320" text-anchor="middle" font-size="10" fill="#666">landing-zone-nat</text>
+
+                    <!-- Firewall Rules Box -->
+                    <rect x="20" y="350" width="360" height="100" rx="8" fill="#e8f5e9" stroke="#66bb6a" stroke-width="2"/>
+                    <text x="200" y="375" text-anchor="middle" font-size="12" font-weight="bold" fill="#2e7d32">🔥 Firewall Rules</text>
+                    <text x="40" y="395" font-size="10" fill="#333">✓ tcp:3128 from OSD VPC (proxy access)</text>
+                    <text x="40" y="410" font-size="10" fill="#333">✓ tcp:22 from IAP range (SSH)</text>
+                    <text x="40" y="425" font-size="10" fill="#333">✓ Egress to Internet (NAT)</text>
+                    <text x="40" y="440" font-size="10" fill="#333">✓ DNS zone peering enabled</text>
+
+                    <!-- DNS Zone Peering -->
+                    <rect x="20" y="470" width="360" height="90" rx="8" fill="#f3e5f5" stroke="#ab47bc" stroke-width="2"/>
+                    <text x="200" y="495" text-anchor="middle" font-size="12" font-weight="bold" fill="#7b1fa2">📡 DNS Zone Peering</text>
+                    <text x="40" y="515" font-size="10" fill="#333">Private DNS zone attached:</text>
+                    <text x="40" y="530" font-size="10" fill="#7b1fa2">  *.sgaikwad.705a.p2.openshiftapps.com</text>
+                    <text x="40" y="545" font-size="10" fill="#333">Auto-resolves to internal LB IPs</text>
+                </g>
+
+                <!-- OSD VPC (Spoke) -->
+                <g transform="translate(500, 180)">
+                    <rect x="0" y="0" width="650" height="580" rx="15" fill="url(#spokeGradient)" stroke="#f57c00" stroke-width="3" filter="url(#shadow)"/>
+                    <text x="325" y="30" text-anchor="middle" font-size="16" font-weight="bold" fill="#e65100">🎯 OSD VPC (Spoke - Private)</text>
+                    <text x="325" y="50" text-anchor="middle" font-size="12" fill="#f57c00">10.0.0.0/16 | No NAT | No Public IPs</text>
+
+                    <!-- Master Subnet -->
+                    <rect x="20" y="70" width="290" height="180" rx="8" fill="#fff3e0" stroke="#ffb74d" stroke-width="2"/>
+                    <text x="165" y="90" text-anchor="middle" font-size="12" font-weight="bold" fill="#e65100">Master Subnet</text>
+                    <text x="165" y="105" text-anchor="middle" font-size="10" fill="#666">10.0.0.0/19</text>
+
+                    <!-- Control Plane Nodes -->
+                    <g transform="translate(30, 115)">
+                        <rect x="0" y="0" width="70" height="45" rx="5" fill="#ff9800" stroke="#e65100" stroke-width="2"/>
+                        <text x="35" y="20" text-anchor="middle" font-size="10" font-weight="bold" fill="#fff">Master-0</text>
+                        <text x="35" y="35" text-anchor="middle" font-size="8" fill="#fff3e0">10.0.0.3</text>
+                    </g>
+                    <g transform="translate(110, 115)">
+                        <rect x="0" y="0" width="70" height="45" rx="5" fill="#ff9800" stroke="#e65100" stroke-width="2"/>
+                        <text x="35" y="20" text-anchor="middle" font-size="10" font-weight="bold" fill="#fff">Master-1</text>
+                        <text x="35" y="35" text-anchor="middle" font-size="8" fill="#fff3e0">10.0.0.5</text>
+                    </g>
+                    <g transform="translate(190, 115)">
+                        <rect x="0" y="0" width="70" height="45" rx="5" fill="#ff9800" stroke="#e65100" stroke-width="2"/>
+                        <text x="35" y="20" text-anchor="middle" font-size="10" font-weight="bold" fill="#fff">Master-2</text>
+                        <text x="35" y="35" text-anchor="middle" font-size="8" fill="#fff3e0">10.0.0.6</text>
+                    </g>
+
+                    <!-- API Internal LB -->
+                    <rect x="60" y="175" width="170" height="35" rx="5" fill="#ffcc80" stroke="#ff9800" stroke-width="2"/>
+                    <text x="145" y="195" text-anchor="middle" font-size="10" font-weight="bold" fill="#e65100">🔗 API Internal LB</text>
+                    <text x="145" y="208" text-anchor="middle" font-size="8" fill="#666">10.0.0.2:6443</text>
+
+                    <!-- Worker Subnet -->
+                    <rect x="330" y="70" width="300" height="180" rx="8" fill="#fff3e0" stroke="#ffb74d" stroke-width="2"/>
+                    <text x="480" y="90" text-anchor="middle" font-size="12" font-weight="bold" fill="#e65100">Worker Subnet</text>
+                    <text x="480" y="105" text-anchor="middle" font-size="10" fill="#666">10.0.32.0/19</text>
+
+                    <!-- Worker Nodes -->
+                    <g transform="translate(345, 115)">
+                        <rect x="0" y="0" width="55" height="45" rx="5" fill="#66bb6a" stroke="#388e3c" stroke-width="2"/>
+                        <text x="27" y="20" text-anchor="middle" font-size="9" font-weight="bold" fill="#fff">Worker</text>
+                        <text x="27" y="35" text-anchor="middle" font-size="8" fill="#e8f5e9">10.0.32.3</text>
+                    </g>
+                    <g transform="translate(410, 115)">
+                        <rect x="0" y="0" width="55" height="45" rx="5" fill="#66bb6a" stroke="#388e3c" stroke-width="2"/>
+                        <text x="27" y="20" text-anchor="middle" font-size="9" font-weight="bold" fill="#fff">Worker</text>
+                        <text x="27" y="35" text-anchor="middle" font-size="8" fill="#e8f5e9">10.0.32.4</text>
+                    </g>
+                    <g transform="translate(475, 115)">
+                        <rect x="0" y="0" width="55" height="45" rx="5" fill="#66bb6a" stroke="#388e3c" stroke-width="2"/>
+                        <text x="27" y="20" text-anchor="middle" font-size="9" font-weight="bold" fill="#fff">Worker</text>
+                        <text x="27" y="35" text-anchor="middle" font-size="8" fill="#e8f5e9">10.0.32.5</text>
+                    </g>
+                    <g transform="translate(540, 115)">
+                        <rect x="0" y="0" width="55" height="45" rx="5" fill="#42a5f5" stroke="#1976d2" stroke-width="2"/>
+                        <text x="27" y="20" text-anchor="middle" font-size="9" font-weight="bold" fill="#fff">Infra</text>
+                        <text x="27" y="35" text-anchor="middle" font-size="8" fill="#e3f2fd">x3</text>
+                    </g>
+
+                    <!-- Ingress LB -->
+                    <rect x="380" y="175" width="170" height="35" rx="5" fill="#a5d6a7" stroke="#66bb6a" stroke-width="2"/>
+                    <text x="465" y="195" text-anchor="middle" font-size="10" font-weight="bold" fill="#2e7d32">🔗 Ingress Internal LB</text>
+                    <text x="465" y="208" text-anchor="middle" font-size="8" fill="#666">10.0.32.2:443</text>
+
+                    <!-- PSC Subnet -->
+                    <rect x="20" y="270" width="290" height="120" rx="8" fill="#e8eaf6" stroke="#7986cb" stroke-width="2"/>
+                    <text x="165" y="290" text-anchor="middle" font-size="12" font-weight="bold" fill="#3949ab">PSC Subnet</text>
+                    <text x="165" y="305" text-anchor="middle" font-size="10" fill="#666">10.0.64.0/29 | PURPOSE: PRIVATE_SERVICE_CONNECT</text>
+
+                    <!-- PSC Endpoint -->
+                    <rect x="40" y="320" width="250" height="55" rx="5" fill="#9fa8da" stroke="#5c6bc0" stroke-width="2" filter="url(#shadow)"/>
+                    <text x="165" y="345" text-anchor="middle" font-size="11" font-weight="bold" fill="#283593">🔒 Private Service Connect</text>
+                    <text x="165" y="362" text-anchor="middle" font-size="9" fill="#3949ab">Google APIs: storage, compute, logging</text>
+
+                    <!-- Private DNS Zone -->
+                    <rect x="330" y="270" width="300" height="120" rx="8" fill="#fce4ec" stroke="#f48fb1" stroke-width="2"/>
+                    <text x="480" y="290" text-anchor="middle" font-size="12" font-weight="bold" fill="#c2185b">🔐 Private DNS Zone</text>
+                    <text x="480" y="310" text-anchor="middle" font-size="9" fill="#666">sgaikwad-866ns-private-zone</text>
+                    <text x="345" y="335" font-size="9" fill="#333">api.sgaikwad.705a... → 10.0.0.2</text>
+                    <text x="345" y="350" font-size="9" fill="#333">*.apps.sgaikwad.705a... → 10.0.32.2</text>
+                    <text x="345" y="370" font-size="9" fill="#c2185b">Shared with Landing Zone VPC ✓</text>
+
+                    <!-- Firewall from LZ -->
+                    <rect x="20" y="410" width="610" height="80" rx="8" fill="#e8f5e9" stroke="#66bb6a" stroke-width="2"/>
+                    <text x="325" y="435" text-anchor="middle" font-size="12" font-weight="bold" fill="#2e7d32">🔥 Firewall: sgaikwad-allow-from-landing-zone</text>
+                    <text x="40" y="455" font-size="10" fill="#333">Source: 10.100.0.0/24 (Landing Zone VPC)</text>
+                    <text x="40" y="475" font-size="10" fill="#333">Allow: tcp:6443 (API), tcp:443,80 (Ingress), tcp:22 (SSH), icmp</text>
+
+                    <!-- Cloud Router (OSD) -->
+                    <rect x="20" y="510" width="150" height="50" rx="8" fill="#ffcc80" stroke="#ff9800" stroke-width="2"/>
+                    <text x="95" y="535" text-anchor="middle" font-size="11" font-weight="bold" fill="#e65100">🔀 Cloud Router</text>
+                    <text x="95" y="550" text-anchor="middle" font-size="9" fill="#666">sgaikwad-router</text>
+
+                    <!-- No NAT indicator -->
+                    <rect x="190" y="510" width="120" height="50" rx="8" fill="#ffcdd2" stroke="#e57373" stroke-width="2"/>
+                    <text x="250" y="535" text-anchor="middle" font-size="11" font-weight="bold" fill="#c62828">❌ No NAT</text>
+                    <text x="250" y="550" text-anchor="middle" font-size="9" fill="#666">Uses Proxy</text>
+                </g>
+
+                <!-- VPC Peering Arrow -->
+                <g>
+                    <line x1="430" y1="400" x2="500" y2="400" stroke="#1976d2" stroke-width="4" stroke-dasharray="10,5"/>
+                    <polygon points="495,395 510,400 495,405" fill="#1976d2"/>
+                    <polygon points="435,395 420,400 435,405" fill="#1976d2"/>
+                    <rect x="435" y="380" width="80" height="40" rx="5" fill="#e3f2fd" stroke="#1976d2" stroke-width="2"/>
+                    <text x="475" y="400" text-anchor="middle" font-size="10" font-weight="bold" fill="#1565c0">VPC</text>
+                    <text x="475" y="412" text-anchor="middle" font-size="10" font-weight="bold" fill="#1565c0">Peering</text>
+                </g>
+
+                <!-- Traffic Flow Arrows -->
+                <!-- Internet to NAT -->
+                <line x1="150" y1="140" x2="280" y2="400" stroke="#9c27b0" stroke-width="2" marker-end="url(#arrowhead)" stroke-dasharray="5,3"/>
+                <text x="180" y="280" font-size="10" fill="#9c27b0" transform="rotate(-60, 180, 280)">Egress Traffic</text>
+
+                <!-- User to Proxy via IAP -->
+                <path d="M 900,100 Q 700,100 200,300" fill="none" stroke="#1976d2" stroke-width="2" marker-end="url(#arrowhead-blue)" stroke-dasharray="5,3"/>
+                <text x="550" y="170" font-size="10" fill="#1976d2">IAP SSH Tunnel</text>
+
+                <!-- Proxy to OSD API -->
+                <line x1="220" y1="340" x2="520" y2="390" stroke="#388e3c" stroke-width="2" marker-end="url(#arrowhead-green)"/>
+                <text x="350" y="350" font-size="10" fill="#388e3c">API:6443</text>
+
+            </svg>
+        </div>
+
+        <div class="legend">
+            <div class="legend-item">
+                <div class="legend-color" style="background: #4fc3f7;"></div>
+                <span>Squid Proxy / Bastion</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #ff9800;"></div>
+                <span>Control Plane (Masters)</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #66bb6a;"></div>
+                <span>Worker Nodes</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #9fa8da;"></div>
+                <span>Private Service Connect</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #f48fb1;"></div>
+                <span>Private DNS Zone</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #4dd0e1;"></div>
+                <span>Cloud NAT</span>
+            </div>
+        </div>
+
+        <div class="details">
+            <h3>📋 Resource Summary</h3>
+            <table>
+                <tr>
+                    <th>Component</th>
+                    <th>Resource Name</th>
+                    <th>CIDR / IP</th>
+                    <th>Purpose</th>
+                </tr>
+                <tr>
+                    <td>Landing Zone VPC</td>
+                    <td>landing-zone-vpc</td>
+                    <td>10.100.0.0/24</td>
+                    <td>Hub VPC with NAT for egress</td>
+                </tr>
+                <tr>
+                    <td>Squid Proxy</td>
+                    <td>landing-zone-proxy</td>
+                    <td>10.100.0.10:3128</td>
+                    <td>Egress proxy + Bastion host</td>
+                </tr>
+                <tr>
+                    <td>OSD VPC</td>
+                    <td>sgaikwad-vpc</td>
+                    <td>10.0.0.0/16</td>
+                    <td>Spoke VPC (private, no NAT)</td>
+                </tr>
+                <tr>
+                    <td>Master Subnet</td>
+                    <td>sgaikwad-master-subnet</td>
+                    <td>10.0.0.0/19</td>
+                    <td>Control plane nodes</td>
+                </tr>
+                <tr>
+                    <td>Worker Subnet</td>
+                    <td>sgaikwad-worker-subnet</td>
+                    <td>10.0.32.0/19</td>
+                    <td>Worker & Infra nodes</td>
+                </tr>
+                <tr>
+                    <td>PSC Subnet</td>
+                    <td>sgaikwad-psc-subnet</td>
+                    <td>10.0.64.0/29</td>
+                    <td>Private Service Connect endpoint</td>
+                </tr>
+                <tr>
+                    <td>API Internal LB</td>
+                    <td>sgaikwad-*-api-internal</td>
+                    <td>10.0.0.2:6443</td>
+                    <td>Kubernetes API server</td>
+                </tr>
+                <tr>
+                    <td>Ingress Internal LB</td>
+                    <td>k8s-fw-*</td>
+                    <td>10.0.32.2:443</td>
+                    <td>Application ingress</td>
+                </tr>
+            </table>
+        </div>
+
+        <div class="details">
+            <h3>🔐 Security Features</h3>
+            <table>
+                <tr>
+                    <th>Feature</th>
+                    <th>Description</th>
+                </tr>
+                <tr>
+                    <td>No Public IPs</td>
+                    <td>All OSD nodes have only private IPs</td>
+                </tr>
+                <tr>
+                    <td>Private Service Connect</td>
+                    <td>Google APIs accessed via private endpoint (no internet)</td>
+                </tr>
+                <tr>
+                    <td>Proxy Egress</td>
+                    <td>All internet traffic goes through Squid proxy with allowlist</td>
+                </tr>
+                <tr>
+                    <td>VPC Peering</td>
+                    <td>Private connectivity between Hub and Spoke VPCs</td>
+                </tr>
+                <tr>
+                    <td>DNS Zone Peering</td>
+                    <td>Private DNS resolution shared across VPCs</td>
+                </tr>
+                <tr>
+                    <td>IAP Tunnel</td>
+                    <td>SSH access via Google's Identity-Aware Proxy (no SSH exposed)</td>
+                </tr>
+                <tr>
+                    <td>Firewall Rules</td>
+                    <td>Least privilege access between VPCs</td>
+                </tr>
+            </table>
+        </div>
+
+        <div class="details">
+            <h3>🚀 Traffic Flows</h3>
+            <table>
+                <tr>
+                    <th>Flow</th>
+                    <th>Path</th>
+                </tr>
+                <tr>
+                    <td>User → Cluster API</td>
+                    <td>Laptop → IAP Tunnel → Proxy VM → VPC Peering → API LB (10.0.0.2:6443)</td>
+                </tr>
+                <tr>
+                    <td>User → Console</td>
+                    <td>Laptop → IAP Tunnel → Proxy VM → VPC Peering → Ingress LB (10.0.32.2:443)</td>
+                </tr>
+                <tr>
+                    <td>OSD → Internet</td>
+                    <td>Worker → VPC Peering → Squid Proxy → Cloud NAT → Internet</td>
+                </tr>
+                <tr>
+                    <td>OSD → Google APIs</td>
+                    <td>Worker → PSC Endpoint → Google APIs (private, no internet)</td>
+                </tr>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        function downloadSVG() {
+            const svg = document.getElementById('architecture-svg');
+            const svgData = new XMLSerializer().serializeToString(svg);
+            const blob = new Blob([svgData], {type: 'image/svg+xml'});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'osd-gcp-hub-spoke-architecture.svg';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+    </script>
+</body>
+</html>

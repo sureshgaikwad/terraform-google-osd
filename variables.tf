@@ -342,3 +342,74 @@ If not set, OCM uses the cluster name as prefix.
 EOF
   default     = ""
 }
+
+variable "compute_machine_type" {
+  type        = string
+  description = <<EOF
+Instance type for the compute (worker) nodes.
+Determines the amount of memory and vCPU allocated to each compute node.
+Examples for GCP:
+  - custom-4-32768-ext   (4 vCPU, 32GB RAM) - Default for OSD
+  - n2-standard-4        (4 vCPU, 16GB RAM)
+  - n2-standard-8        (8 vCPU, 32GB RAM)
+  - n2-highmem-4         (4 vCPU, 32GB RAM)
+  - e2-standard-4        (4 vCPU, 16GB RAM)
+Run `ocm list machine-types --provider gcp` to see available types.
+If not set, OCM uses the default instance type.
+EOF
+  default     = ""
+}
+
+# ============================================
+# Additional Machine Pools Configuration
+# ============================================
+
+variable "additional_machine_pools" {
+  description = <<EOF
+Additional machine pools to create after cluster installation.
+The default "worker" pool is created during cluster installation.
+These pools are created AFTER the cluster is ready.
+
+Each pool object supports:
+  - name          : (Required) Name of the machine pool
+  - instance_type : (Required) GCP instance type (e.g., n2-standard-8)
+  - replicas      : (Optional) Fixed number of nodes (mutually exclusive with autoscaling)
+  - min_replicas  : (Optional) Minimum nodes for autoscaling
+  - max_replicas  : (Optional) Maximum nodes for autoscaling
+  - labels        : (Optional) Map of labels to apply to nodes
+  - taints        : (Optional) List of taints to apply to nodes
+  - availability_zone : (Optional) Single zone for this pool (multi-AZ clusters only)
+
+Example:
+  additional_machine_pools = [
+    {
+      name          = "large"
+      instance_type = "n2-standard-16"
+      replicas      = 2
+      labels        = { "workload-type" = "large" }
+    },
+    {
+      name          = "gpu"
+      instance_type = "n1-standard-4"
+      min_replicas  = 1
+      max_replicas  = 5
+      labels        = { "workload-type" = "gpu" }
+    }
+  ]
+EOF
+  type = list(object({
+    name              = string
+    instance_type     = string
+    replicas          = optional(number, null)
+    min_replicas      = optional(number, null)
+    max_replicas      = optional(number, null)
+    labels            = optional(map(string), {})
+    taints = optional(list(object({
+      key    = string
+      value  = string
+      effect = string
+    })), [])
+    availability_zone = optional(string, null)
+  }))
+  default = []
+}

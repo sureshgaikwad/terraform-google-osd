@@ -1,0 +1,158 @@
+# =============================================================================
+# Example: Using the Machine Pool Module
+# =============================================================================
+# 
+# Copy this file to machine-pools.tf and customize for your needs.
+# Uncomment and modify the machine pool configurations below.
+#
+# Prerequisites:
+# - OSD cluster must be deployed and in "ready" state
+# - OCM CLI must be authenticated
+# =============================================================================
+
+# Get the cluster ID from the cluster install resource
+# locals {
+#   cluster_id = shell_script.cluster_install[0].output["cluster_id"]
+# }
+
+# -----------------------------------------------------------------------------
+# Example 1: General Purpose Worker Pool
+# -----------------------------------------------------------------------------
+# module "general_workers" {
+#   source = "./modules/machine-pool"
+#
+#   cluster_id        = local.cluster_id
+#   machine_pool_name = "general"
+#   instance_type     = "n2-standard-4"
+#   replicas          = 3
+#
+#   labels = {
+#     "workload-type" = "general"
+#   }
+#
+#   depends_on = [shell_script.cluster_install]
+# }
+
+# -----------------------------------------------------------------------------
+# Example 2: Memory-Optimized Pool with Autoscaling
+# -----------------------------------------------------------------------------
+# module "memory_workers" {
+#   source = "./modules/machine-pool"
+#
+#   cluster_id        = local.cluster_id
+#   machine_pool_name = "highmem"
+#   instance_type     = "n2-highmem-8"
+#
+#   enable_autoscaling = true
+#   min_replicas       = 2
+#   max_replicas       = 8
+#
+#   labels = {
+#     "node.kubernetes.io/memory" = "high"
+#     "workload-type"             = "memory-intensive"
+#   }
+#
+#   depends_on = [shell_script.cluster_install]
+# }
+
+# -----------------------------------------------------------------------------
+# Example 3: GPU Pool with Taints
+# -----------------------------------------------------------------------------
+# module "gpu_workers" {
+#   source = "./modules/machine-pool"
+#
+#   cluster_id        = local.cluster_id
+#   machine_pool_name = "gpu"
+#   instance_type     = "a2-highgpu-1g"
+#   replicas          = 2
+#
+#   labels = {
+#     "nvidia.com/gpu.present" = "true"
+#     "workload-type"          = "gpu"
+#   }
+#
+#   taints = [
+#     {
+#       key    = "nvidia.com/gpu"
+#       value  = "present"
+#       effect = "NoSchedule"
+#     }
+#   ]
+#
+#   depends_on = [shell_script.cluster_install]
+# }
+
+# -----------------------------------------------------------------------------
+# Example 4: Single-AZ Pool in Multi-AZ Cluster
+# -----------------------------------------------------------------------------
+# module "zone_a_workers" {
+#   source = "./modules/machine-pool"
+#
+#   cluster_id        = local.cluster_id
+#   machine_pool_name = "zone-a"
+#   instance_type     = "n2-standard-8"
+#   replicas          = 3
+#   availability_zone = "asia-south1-a"
+#
+#   labels = {
+#     "topology.kubernetes.io/zone" = "asia-south1-a"
+#   }
+#
+#   depends_on = [shell_script.cluster_install]
+# }
+
+# -----------------------------------------------------------------------------
+# Example 5: Compute-Optimized Pool with Secure Boot
+# -----------------------------------------------------------------------------
+# module "compute_workers" {
+#   source = "./modules/machine-pool"
+#
+#   cluster_id          = local.cluster_id
+#   machine_pool_name   = "compute"
+#   instance_type       = "c2-standard-8"
+#   replicas            = 4
+#   secure_boot_enabled = true
+#
+#   labels = {
+#     "workload-type" = "compute-intensive"
+#   }
+#
+#   depends_on = [shell_script.cluster_install]
+# }
+
+# =============================================================================
+# Using with for_each for Multiple Pools
+# =============================================================================
+# 
+# locals {
+#   machine_pools = {
+#     "general" = {
+#       instance_type = "n2-standard-4"
+#       replicas      = 6
+#       labels        = { "tier" = "general" }
+#     }
+#     "memory" = {
+#       instance_type = "n2-highmem-8"
+#       replicas      = 3
+#       labels        = { "tier" = "memory" }
+#     }
+#     "compute" = {
+#       instance_type = "c2-standard-8"
+#       replicas      = 4
+#       labels        = { "tier" = "compute" }
+#     }
+#   }
+# }
+# 
+# module "worker_pools" {
+#   source   = "./modules/machine-pool"
+#   for_each = local.machine_pools
+#
+#   cluster_id        = local.cluster_id
+#   machine_pool_name = each.key
+#   instance_type     = each.value.instance_type
+#   replicas          = each.value.replicas
+#   labels            = each.value.labels
+#
+#   depends_on = [shell_script.cluster_install]
+# }

@@ -71,6 +71,12 @@ if [[ -n "${domain_prefix}" && "${domain_prefix}" != "" ]]; then
   domain_flags="--domain-prefix ${domain_prefix}"
 fi
 
+# Compute machine type
+compute_machine_type_flag=""
+if [[ -n "${compute_machine_type}" && "${compute_machine_type}" != "" ]]; then
+  compute_machine_type_flag="--compute-machine-type ${compute_machine_type}"
+fi
+
 # Multi-AZ configuration
 availability_zones_flags=""
 compute_nodes_flag=""
@@ -125,6 +131,7 @@ if [[ -n "$availability_zones_value" ]]; then
                   $multi_az_flag \
                   $availability_zones_flags "$availability_zones_value" \
                   $compute_nodes_flag \
+                  $compute_machine_type_flag \
                   --ccs 2>&1
 else
   # Single-AZ cluster creation
@@ -138,6 +145,7 @@ else
                   $psc_flags \
                   $proxy_flags \
                   $domain_flags \
+                  $compute_machine_type_flag \
                   --ccs 2>&1
 fi
 
@@ -213,3 +221,9 @@ if [ $ATTEMPT -eq $MAX_ATTEMPTS ]; then
     echo "Timeout after 90 minutes. Check status at https://console.redhat.com"
     exit 1
 fi
+
+# Output cluster ID as JSON for Terraform to capture
+echo ""
+echo "TERRAFORM_OUTPUT_START"
+jq -n --arg cluster_id "$CLUSTER_ID" --arg cluster_name "${cluster_name}" '{cluster_id: $cluster_id, cluster_name: $cluster_name}'
+echo "TERRAFORM_OUTPUT_END"
