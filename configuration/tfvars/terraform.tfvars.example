@@ -92,8 +92,8 @@ enable_nat_gateway = true
 # HTTPS proxy URL (usually same as http_proxy)
 # https_proxy = "http://10.100.0.10:3128"
 
-# Domains/CIDRs to bypass proxy (comma-separated)
-# no_proxy = ".cluster.local,.svc,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,169.254.169.254"
+# Domains/CIDRs to bypass proxy (comma-separated, required when using proxy)
+# no_proxy = "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,169.254.169.254"
 
 # Path to CA bundle if proxy uses custom/self-signed certificate
 # additional_trust_bundle = "/path/to/ca-bundle.pem"
@@ -107,6 +107,10 @@ osd_gcp_private = false
 
 # Enable Private Service Connect (PSC) for private Google API access
 osd_gcp_psc = false
+
+# PSC endpoint IP address (must be within Machine CIDR but outside all subnets)
+# Adjust this to match your network range (e.g., if using 10.92.x.x, use 10.92.255.100)
+# psc_endpoint_address = "10.0.255.100"
 
 # List of GCP services for PSC endpoints (when osd_gcp_psc = true)
 # enable_psc_endpoints = [
@@ -245,7 +249,7 @@ only_deploy_infra_no_osd = false
 # # Proxy in Landing Zone VPC (created by setup script)
 # http_proxy                   = "http://10.100.0.10:3128"
 # https_proxy                  = "http://10.100.0.10:3128"
-# no_proxy                     = ".cluster.local,.svc,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,169.254.169.254"
+# no_proxy                     = "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,169.254.169.254"
 #
 # # Bastion will be in Landing Zone VPC
 # enable_osd_gcp_bastion       = false

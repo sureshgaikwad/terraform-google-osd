@@ -216,6 +216,16 @@ EOF
   default     = "10.0.0.248/29"  
 }
 
+variable "psc_endpoint_address" {
+  type        = string
+  description = <<EOF
+The IP address for the PSC Google APIs endpoint.
+Must be within your Machine CIDR range but outside all subnets.
+Example: If your subnets are in 10.92.x.x, use something like "10.92.255.100"
+EOF
+  default     = "10.0.255.100"
+}
+
 variable "enable_psc_endpoints" {
   description = "List of GCP services to create PSC endpoints for"
   type        = list(string)
@@ -306,9 +316,10 @@ variable "no_proxy" {
   description = <<EOF
 Comma-separated list of CIDRs to bypass the proxy.
 Note: OCM only accepts valid CIDRs or full domain names (not .svc or .cluster.local).
-Default includes private networks and metadata server.
+Required when http_proxy or https_proxy is set.
+Example: "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,169.254.169.254"
 EOF
-  default     = "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,169.254.169.254"
+  default     = ""
 }
 
 variable "additional_trust_bundle" {

@@ -4,6 +4,7 @@ vpc_routing_mode = "REGIONAL"
 master_cidr_block = "10.0.0.0/19"      # 10.0.0.0 - 10.0.31.255
 worker_cidr_block = "10.0.32.0/19"     # 10.0.32.0 - 10.0.63.255
 psc_subnet_cidr_block = "10.0.64.0/29" # 10.0.64.0 - 10.0.64.7 (within Machine CIDR)
+psc_endpoint_address  = "10.0.255.100" # PSC endpoint IP (within Machine CIDR, outside subnets)
 bastion_cidr_block = "10.10.0.0/24"
 gcp_region = "us-west1"
 gcp_zone = "us-west1-a"
@@ -22,3 +23,9 @@ only_deploy_infra_no_osd = false
 
 # add this if your SSH key is not in the default location
 # bastion_key_loc = "~/.ssh/id_rsa.pub"
+
+# Proxy Configuration (only required if using proxy for egress instead of NAT)
+# http_proxy  = "http://10.100.0.10:3128"
+# https_proxy = "http://10.100.0.10:3128"
+# no_proxy    = "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,169.254.169.254"
+# additional_trust_bundle = "/path/to/ca-bundle.pem"

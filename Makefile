@@ -7,6 +7,10 @@ TF_VARIABLES      := configuration/tfvars
 
 all: init changes deploy
 
+prereqs:
+	$(info Checking prerequisites...)
+	@./scripts/check-prereqs.sh
+
 init: 
 	$(info Initializing Terraform...)
 	$(TERRAFORM) init \

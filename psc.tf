@@ -29,7 +29,7 @@ resource "google_compute_global_address" "psc_google_apis" {
   name          = "pscgapisip"  
   purpose       = "PRIVATE_SERVICE_CONNECT"
   address_type  = "INTERNAL"
-  address       = "10.0.255.100"  # outside all subnets
+  address       = var.psc_endpoint_address  # Must be within Machine CIDR but outside all subnets
   network       = local.vpc_id
   project       = var.gcp_project
 }
