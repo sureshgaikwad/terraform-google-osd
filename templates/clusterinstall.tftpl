@@ -77,6 +77,18 @@ if [[ -n "${compute_machine_type}" && "${compute_machine_type}" != "" ]]; then
   compute_machine_type_flag="--compute-machine-type ${compute_machine_type}"
 fi
 
+# Cluster version
+version_flag=""
+if [[ -n "${cluster_version}" && "${cluster_version}" != "" ]]; then
+  version_flag="--version ${cluster_version}"
+fi
+
+# Machine CIDR (overall IP range for cluster machines)
+machine_cidr_flag=""
+if [[ -n "${machine_cidr}" && "${machine_cidr}" != "" ]]; then
+  machine_cidr_flag="--machine-cidr ${machine_cidr}"
+fi
+
 # Multi-AZ configuration
 availability_zones_flags=""
 compute_nodes_flag=""
@@ -128,6 +140,8 @@ if [[ -n "$availability_zones_value" ]]; then
                   $psc_flags \
                   $proxy_flags \
                   $domain_flags \
+                  $version_flag \
+                  $machine_cidr_flag \
                   $multi_az_flag \
                   $availability_zones_flags "$availability_zones_value" \
                   $compute_nodes_flag \
@@ -145,6 +159,8 @@ else
                   $psc_flags \
                   $proxy_flags \
                   $domain_flags \
+                  $version_flag \
+                  $machine_cidr_flag \
                   $compute_machine_type_flag \
                   --ccs 2>&1
 fi

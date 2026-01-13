@@ -1,341 +1,492 @@
-# OpenShift Dedicated for GCP in Pre-Existing VPCs & in Private Mode
+# OpenShift Dedicated on GCP - Terraform Automation
 
-Automation Code for deploy and manage OpenShift Dedicated in GCP in Pre-Existing VPCs & Private Mode
+Terraform automation for deploying OpenShift Dedicated (OSD) clusters on Google Cloud Platform with support for:
+- **Public clusters** - Standard deployment with public endpoints
+- **Private clusters** - No public endpoints, bastion access required
+- **Private Service Connect (PSC)** - Enhanced private connectivity using GCP PSC
+- **Hub-Spoke architecture** - Fully private VPC with proxy-based egress through a landing zone
+
+## Architecture
+
+### Standard Private Cluster
+```
+┌─────────────────────────────────────────────────────────────┐
+│                     OSD VPC                                 │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────┐ │
+│  │   Masters   │  │   Workers   │  │  PSC (Google APIs)  │ │
+│  │ 10.x.x.x/27 │  │ 10.x.x.x/19 │  │    10.x.x.x/29      │ │
+│  └─────────────┘  └─────────────┘  └─────────────────────┘ │
+│                         │                                   │
+│                    Cloud NAT ────► Internet                 │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Hub-Spoke Architecture (Fully Private)
+```
+┌────────────────────────┐         ┌─────────────────────────┐
+│ Landing Zone VPC (Hub) │         │    OSD VPC (Spoke)      │
+│                        │         │                         │
+│  ┌─────────────────┐   │  Peer   │  ┌─────────┐ ┌────────┐│
+│  │ Squid Proxy/    │◄──┼─────────┼─►│ Masters │ │Workers ││
+│  │ Bastion         │   │         │  └─────────┘ └────────┘│
+│  └────────┬────────┘   │         │                         │
+│           │            │         │  ┌──────────────────┐  │
+│  ┌────────▼────────┐   │         │  │ PSC (Google APIs)│  │
+│  │ Cloud NAT       │   │         │  └──────────────────┘  │
+│  └────────┬────────┘   │         │                         │
+│           ▼            │         │  (No NAT - uses proxy)  │
+│       Internet         │         │                         │
+└────────────────────────┘         └─────────────────────────┘
+```
+
+## Prerequisites
+
+### Required Tools
+- **Terraform** >= 1.0
+- **OCM CLI** >= 1.0.3 (>= 0.1.73 for PSC support)
+- **gcloud CLI** - authenticated
+- **jq** - JSON processor
+
+### GCP Setup
+1. Create a GCP project with billing enabled
+2. Enable required APIs:
+   ```bash
+   gcloud services enable compute.googleapis.com \
+       container.googleapis.com \
+       dns.googleapis.com \
+       iap.googleapis.com \
+       cloudresourcemanager.googleapis.com
+   ```
+3. Follow the [Required customer procedure](https://docs.openshift.com/dedicated/osd_planning/gcp-ccs.html#ccs-gcp-customer-procedure_gcp-ccs)
+
+### OCM Authentication
+```bash
+# Login to OCM
+ocm login --token=<your-token>
+
+# Get token from: https://console.redhat.com/openshift/token
+```
+
+## Quick Start
+
+### 1. Clone and Configure
+
+```bash
+# Clone the repository
+git clone <repository-url>
+cd terraform-google-osd
+
+# Copy example configuration
+cp terraform.tfvars.example terraform.tfvars
+
+# Edit with your values
+vim terraform.tfvars
+```
+
+### 2. Required Configuration
+
+At minimum, set these values in `terraform.tfvars`:
+
+```hcl
+# GCP Settings
+gcp_project = "your-gcp-project-id"
+gcp_region  = "us-central1"
+gcp_zone    = "us-central1-a"
+
+# Cluster Settings
+clustername = "my-osd-cluster"
+
+# Authentication (WIF recommended)
+gcp_authentication_type = "workload_identity_federation"
+
+# Network CIDRs (all must be within machine_cidr)
+machine_cidr          = "10.0.0.0/16"
+master_cidr_block     = "10.0.0.0/19"
+worker_cidr_block     = "10.0.32.0/19"
+psc_subnet_cidr_block = "10.0.64.0/29"
+bastion_cidr_block    = "10.10.0.0/24"
+```
+
+### 3. Deploy
+
+```bash
+# Initialize Terraform
+terraform init
+
+# Review plan
+terraform plan
+
+# Deploy
+terraform apply
+```
+
+## Configuration Options
+
+### GCP Settings
+
+| Variable | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `gcp_project` | string | Yes | - | GCP Project ID |
+| `gcp_region` | string | Yes | - | GCP Region (e.g., us-central1) |
+| `gcp_zone` | string | Yes | - | GCP Zone (e.g., us-central1-a) |
+
+### Cluster Settings
+
+| Variable | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `clustername` | string | Yes | - | Cluster name (used as resource prefix) |
+| `cluster_version` | string | No | "" | OpenShift version (e.g., "4.14"). Empty = latest |
+| `compute_nodes_count` | number | No | null | Number of worker nodes. For multi-AZ, must be multiple of zone count |
+| `compute_machine_type` | string | No | "" | Worker node instance type (e.g., n2-standard-8) |
+| `domain_prefix` | string | No | "" | Custom domain prefix for cluster URLs |
 
 ### Authentication
 
-Pick one of two options for the installer and cluster to access GCP resources in your account, Workload Identity Federation, or Service Account.
+| Variable | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `gcp_authentication_type` | string | Yes | - | `workload_identity_federation` or `service_account` |
+| `gcp_sa_file_loc` | string | No | - | Path to SA JSON (required for service_account auth) |
+| `use_existing_wif` | bool | No | false | Use existing WIF config instead of creating new |
+| `existing_wif_config_name` | string | No | "" | Name of existing WIF config |
 
-#### Workload Identity Federation
+### Network Configuration
 
-[Workload Identity Federation](https://docs.openshift.com/dedicated/osd_gcp_clusters/creating-a-gcp-cluster-with-workload-identity-federation.html#workload-identity-federation-overview_osd-creating-a-cluster-on-gcp-with-workload-identity-federation) is the preferred method of authentication that uses short-lived credentials.
+| Variable | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `machine_cidr` | string | Yes | "" | Overall IP range for cluster (e.g., 10.0.0.0/16) |
+| `master_cidr_block` | string | Yes | - | Control plane subnet CIDR |
+| `worker_cidr_block` | string | Yes | - | Worker subnet CIDR |
+| `psc_subnet_cidr_block` | string | Yes | - | PSC subnet CIDR (/29 or larger) |
+| `bastion_cidr_block` | string | Yes | - | Bastion subnet CIDR |
+| `vpc_routing_mode` | string | No | "REGIONAL" | VPC routing mode |
 
-1. Follow the general [Required customer procedure](https://docs.openshift.com/dedicated/osd_planning/gcp-ccs.html#ccs-gcp-customer-procedure_gcp-ccs)
-1. Follow the specific [Workload Identity Federation authentication type procedure](https://docs.openshift.com/dedicated/osd_planning/gcp-ccs.html#ccs-gcp-customer-procedure-wif_gcp-ccs)
-1. Set the `gcp_authentication_type` Terraform variable using `export TF_VAR_gcp_authentication_type=workload_identity_federation`.
-1. Optionally, if you have configured a bastion, and your ssh key is not `~/.ssh/id_rsa.pub`, set its location using ` export TF_VAR_bastion_key_loc=$PATH_TO_PUBLIC_KEY`
+### Existing VPC (BYO VPC)
 
-#### Service Account
+| Variable | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `use_existing_vpc` | bool | No | false | Use pre-existing VPC |
+| `existing_vpc_name` | string | No | "" | Name of existing VPC |
+| `existing_master_subnet_name` | string | No | "" | Name of existing master subnet |
+| `existing_worker_subnet_name` | string | No | "" | Name of existing worker subnet |
+| `existing_psc_subnet_name` | string | No | "" | Name of existing PSC subnet |
+| `existing_router_name` | string | No | "" | Name of existing Cloud Router |
 
-[Service Account](https://docs.openshift.com/dedicated/osd_gcp_clusters/creating-a-gcp-cluster-sa.html#service-account-auth-overview_osd-creating-a-cluster-on-gcp-sa) authentication uses a public/private keypair with broader permissions than WIF.
+### Cluster Type
 
-1. Follow the general [Required customer procedure](https://docs.openshift.com/dedicated/osd_planning/gcp-ccs.html#ccs-gcp-customer-procedure_gcp-ccs)
-1. Follow the specific [Service account authentication type procedure](https://docs.openshift.com/dedicated/osd_planning/gcp-ccs.html#ccs-gcp-customer-procedure-sa_gcp-ccs)
-1. Export the location of your `osd-ccs-admin` service account key json file using `export TF_VAR_gcp_sa_file_loc=$PATH_TO_JSON_FILE`
-1. Set the `gcp_authentication_type` Terraform variable using `export TF_VAR_gcp_authentication_type=service_account`.
-1. Optionally, if you have configured a bastion, and your ssh key is not `~/.ssh/id_rsa.pub`, set its location using ` export TF_VAR_bastion_key_loc=$PATH_TO_PUBLIC_KEY`
+| Variable | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `osd_gcp_private` | bool | No | false | Deploy as private cluster |
+| `osd_gcp_psc` | bool | No | false | Enable Private Service Connect |
+| `psc_endpoint_address` | string | No | - | IP for PSC Google APIs endpoint |
+| `enable_nat_gateway` | bool | No | true | Create NAT gateway (false for hub-spoke) |
 
-## OSD in GCP in Pre-Existing VPCs / Subnets (ideally use the terraform below)
+### Multi-AZ Configuration
 
-<img align="center" width="750" src="assets/osd-prereqs.png">
+| Variable | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `gcp_availability_zones` | string | No | "" | Comma-separated zones (e.g., "us-central1-a,us-central1-b,us-central1-c") |
 
-* Copy and modify the tfvars file in order to custom to your scenario
+### Proxy Configuration (Hub-Spoke)
 
-```bash
-cp -pr configuration/tfvars/terraform.tfvars.example configuration/tfvars/terraform.tfvars
+| Variable | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `http_proxy` | string | No | "" | HTTP proxy URL (e.g., http://10.100.0.10:3128) |
+| `https_proxy` | string | No | "" | HTTPS proxy URL |
+| `no_proxy` | string | No | "" | Domains/CIDRs to bypass proxy |
+| `additional_trust_bundle` | string | No | "" | Path to CA bundle for proxy |
+
+### Bastion Host
+
+| Variable | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `enable_osd_gcp_bastion` | bool | No | false | Deploy bastion host |
+| `bastion_machine_type` | string | No | "e2-micro" | Bastion instance type |
+| `bastion_key_loc` | string | No | "~/.ssh/id_rsa.pub" | SSH public key path |
+
+### Additional Machine Pools
+
+| Variable | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `additional_machine_pools` | list(object) | No | [] | Additional machine pool configurations |
+
+Example:
+```hcl
+additional_machine_pools = [
+  {
+    name          = "large"
+    instance_type = "n2-standard-16"
+    replicas      = 2
+    labels = {
+      "workload-type" = "large"
+    }
+  },
+  {
+    name          = "gpu"
+    instance_type = "n1-standard-4"
+    min_replicas  = 1
+    max_replicas  = 5
+    taints = [
+      {
+        key    = "nvidia.com/gpu"
+        value  = "true"
+        effect = "NoSchedule"
+      }
+    ]
+  }
+]
 ```
 
-## OSD in GCP building everything from scratch (automation yay!)
+### Advanced Options
 
-* Deploy everything using terraform and ocm:
+| Variable | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `only_deploy_infra_no_osd` | bool | No | false | Deploy only infrastructure, skip cluster |
 
-Ensure you have the following installed:
-* `ocm` binary, at least version 1.0.3, logged in
-* `jq`
-* `gcloud` binary, logged in
+## Deployment Scenarios
 
-* Ensure you have the following exported:
+### Scenario 1: Public Cluster (Simplest)
 
-```bash
-export TF_VAR_clustername=$YOUR_CLUSTER_NAME
-export TF_VAR_gcp_sa_file_loc=$PATH_TO_YOUR_SA_JSON
-````
-
-Then:
-
-```bash
-make all
-```
-
-This will:
-1. Build your VPCs based on the config  in configuration/tfvars
-2. Connect to your ocm console and create a new cluster using the variables from terraform
-
-You should then be good to go!
-
-## Or if you want to do it manually:
-
-```bash
-export ENVIRONMENT="lab"
-export TF_BACKEND_CONF="configuration/backend"
-export TF_VARIABLES="configuration/tfvars"
-export TF_VAR_clustername=$YOUR_CLUSTER_NAME
-
-terraform init -backend-config="$TF_BACKEND_CONF/$ENVIRONMENT.conf"
-terraform plan -var-file="$TF_VARIABLES/terraform.tfvars" -out "output/tf.$ENVIRONMENT.plan"
-terraform apply output/tf.$ENVIRONMENT.plan
-```
-
-* Then follow the [OSD in GCP install link](https://docs.openshift.com/dedicated/osd_install_access_delete_cluster/creating-a-gcp-cluster.html#osd-create-gcp-cluster-ccs_osd-creating-a-cluster-on-gcp)
-
-## OSD in GCP in Private Mode
-
-<img align="center" width="750" src="assets/osd-prereqs-private.png">
-
-NOTE: this will be deploying also the Bastion host that will be used for connect to the OSD private cluster.
-
-* Setup to true these two variables, in your terraform.tfvars.
-
-```bash
-enable_osd_gcp_bastion = true
-osd_gcp_private = true
-```
-
-* Deploy the network infrastructure in GCP needed for deploy the OSD cluster
-
-```bash
-make all
-```
-
-* or if you want to do it manually:
-
-```bash
-export ENVIRONMENT="lab"
-export TF_BACKEND_CONF="configuration/backend"
-export TF_VARIABLES="configuration/tfvars"
-
-terraform init -backend-config="$TF_BACKEND_CONF/$ENVIRONMENT.conf"
-terraform plan -var-file="$TF_VARIABLES/terraform.tfvars" -out "output/tf.$ENVIRONMENT.plan"
-terraform apply output/tf.$ENVIRONMENT.plan
-```
-
-* Follow the [OSD in GCP install link](https://docs.openshift.com/dedicated/osd_install_access_delete_cluster/creating-a-gcp-cluster.html#osd-create-gcp-cluster-ccs_osd-creating-a-cluster-on-gcp)
-
-## Auto cleanup
-
-Export the following:
-
-```bash
-export TF_VAR_clustername=$YOUR_CLUSTER_NAME
-````
-
-Then:
-
-```bash
-make destroy
-```
-
-
-## OSD in GCP with Private Service Connect (PSC)
-
-[Private Service Connect (PSC)](https://docs.openshift.com/dedicated/osd_gcp_clusters/creating-a-gcp-psc-enabled-private-cluster.html) is Google Cloud's security-enhanced networking feature that enables private communication between services across different projects or organizations within GCP. With PSC, you can deploy OpenShift Dedicated clusters in a completely private environment without any public-facing cloud resources.
-
-### Prerequisites
-
-* PSC is only available on OpenShift Dedicated version 4.17 and later
-* Must use Customer Cloud Subscription (CCS) model
-* Requires Workload Identity Federation (WIF) or Service Account authentication
-* Cloud Identity-Aware Proxy API must be enabled in your GCP project
-* **OCM CLI version 0.1.73 or later** (required for PSC support)
-  ```bash
-  # Check version
-  ocm version
-  
-  # If upgrade needed:
-  wget https://github.com/openshift-online/ocm-cli/releases/download/v0.1.73/ocm-linux-amd64
-  ```
-
-### Setup PSC-enabled Private Cluster
-
-* Copy and modify the PSC example tfvars file:
-
-```bash
-cp -pr configuration/tfvars/terraform.tfvars.psc.example configuration/tfvars/terraform.tfvars
-```
-
-* Key configuration in your terraform.tfvars:
-
-```bash
-# enable private cluster with PSC
-osd_gcp_private = true
-osd_gcp_psc = true
-
-# PSC requires WIF authentication (recommended)
+```hcl
+gcp_project             = "my-project"
+clustername             = "my-cluster"
+gcp_region              = "us-central1"
+gcp_zone                = "us-central1-a"
 gcp_authentication_type = "workload_identity_federation"
 
-# enable bastion for private cluster access
+machine_cidr          = "10.0.0.0/16"
+master_cidr_block     = "10.0.0.0/19"
+worker_cidr_block     = "10.0.32.0/19"
+psc_subnet_cidr_block = "10.0.64.0/29"
+bastion_cidr_block    = "10.10.0.0/24"
+
+osd_gcp_private = false
+osd_gcp_psc     = false
+```
+
+### Scenario 2: Private Cluster with PSC
+
+```hcl
+gcp_project             = "my-project"
+clustername             = "my-private-cluster"
+gcp_region              = "us-central1"
+gcp_zone                = "us-central1-a"
+gcp_authentication_type = "workload_identity_federation"
+
+machine_cidr          = "10.0.0.0/16"
+master_cidr_block     = "10.0.0.0/19"
+worker_cidr_block     = "10.0.32.0/19"
+psc_subnet_cidr_block = "10.0.64.0/29"
+psc_endpoint_address  = "10.0.100.100"
+bastion_cidr_block    = "10.10.0.0/24"
+
+osd_gcp_private        = true
+osd_gcp_psc            = true
 enable_osd_gcp_bastion = true
-
-# IMPORTANT: PSC subnet MUST be within Machine CIDR range
-# example with proper CIDR allocation:
-master_cidr_block = "10.0.0.0/19"      # 10.0.0.0 - 10.0.31.255
-worker_cidr_block = "10.0.32.0/19"     # 10.0.32.0 - 10.0.63.255
-psc_subnet_cidr_block = "10.0.64.0/29" # within Machine CIDR (10.0.0.0/17)
-
-# CRITICAL: Ensure naming consistency!
-clustername = "osd-psc-wif"  # must match what you'll use in OCM
 ```
 
-* **Export environment variable to ensure naming consistency**:
+### Scenario 3: Multi-AZ Private Cluster
 
-```bash
-export TF_VAR_clustername=osd-psc-wif  # must match terraform.tfvars
+```hcl
+gcp_project              = "my-project"
+clustername              = "my-multiaz-cluster"
+gcp_region               = "us-central1"
+gcp_zone                 = "us-central1-a"
+gcp_authentication_type  = "workload_identity_federation"
+gcp_availability_zones   = "us-central1-a,us-central1-b,us-central1-c"
+compute_nodes_count      = 3  # Must be multiple of zone count
+
+machine_cidr          = "10.0.0.0/16"
+master_cidr_block     = "10.0.0.0/19"
+worker_cidr_block     = "10.0.32.0/19"
+psc_subnet_cidr_block = "10.0.64.0/29"
+psc_endpoint_address  = "10.0.100.100"
+bastion_cidr_block    = "10.10.0.0/24"
+
+osd_gcp_private        = true
+osd_gcp_psc            = true
+enable_osd_gcp_bastion = true
 ```
 
-* Deploy the infrastructure and cluster:
+### Scenario 4: Hub-Spoke with Proxy (Fully Private)
+
+First, run the setup script to create the infrastructure:
 
 ```bash
-make all
+./scripts/setup-vpc-infrastructure.sh -p my-project -r us-central1 -c my-cluster
 ```
 
-This will:
-- Automatically create WIF config as `${clustername}-wif`
-- Deploy VPCs, subnets, and firewall rules
-- Create the OSD cluster with PSC
-- Monitor installation progress (typically 30-45 minutes)
+Then configure terraform.tfvars:
 
-### Accessing the PSC Private Cluster
+```hcl
+gcp_project             = "my-project"
+clustername             = "my-cluster"
+gcp_region              = "us-central1"
+gcp_zone                = "us-central1-a"
+gcp_authentication_type = "workload_identity_federation"
 
-Once the cluster is ready (State: ready), access it through the bastion:
+# Use VPC created by setup script
+use_existing_vpc            = true
+existing_vpc_name           = "my-cluster-vpc"
+existing_master_subnet_name = "my-cluster-master-subnet"
+existing_worker_subnet_name = "my-cluster-worker-subnet"
+existing_psc_subnet_name    = "my-cluster-psc-subnet"
+existing_router_name        = "my-cluster-router"
 
-#### 1. SSH to bastion
-```bash
-gcloud compute ssh ${CLUSTERNAME}-bastion-vm --zone=${GCP_ZONE} --project=${GCP_PROJECT}
+# CIDRs matching script (10.92.x.x range)
+machine_cidr          = "10.92.0.0/16"
+master_cidr_block     = "10.92.0.0/27"
+worker_cidr_block     = "10.92.32.0/19"
+psc_subnet_cidr_block = "10.92.64.0/29"
+psc_endpoint_address  = "10.92.100.100"
+bastion_cidr_block    = "10.10.0.0/24"
+
+# No NAT - using proxy
+enable_nat_gateway = false
+
+# Proxy in landing zone VPC
+http_proxy  = "http://10.100.0.10:3128"
+https_proxy = "http://10.100.0.10:3128"
+no_proxy    = "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,169.254.169.254"
+
+osd_gcp_private        = true
+osd_gcp_psc            = true
+enable_osd_gcp_bastion = false  # Bastion is in landing zone
 ```
 
-#### 2. Install OCM CLI on bastion (if not already installed)
-```bash
-wget https://github.com/openshift-online/ocm-cli/releases/download/v0.1.73/ocm-linux-amd64
-sudo mv ocm-linux-amd64 /usr/bin/ocm
-sudo chmod +x /usr/bin/ocm
+### Scenario 5: Using Existing WIF
+
+```hcl
+gcp_authentication_type  = "workload_identity_federation"
+use_existing_wif         = true
+existing_wif_config_name = "my-existing-wif"
 ```
 
-#### 3. Test API connectivity
-```bash
-# find API endpoint
-nslookup api.${CLUSTERNAME}.<domain>.openshiftapps.com
+## Accessing Private Clusters
 
-# test health endpoint (should return "ok")
-curl -k https://api.${CLUSTERNAME}.<domain>.openshiftapps.com:6443/healthz
+### Via Bastion (Standard)
+
+```bash
+# SSH to bastion
+gcloud compute ssh ${CLUSTERNAME}-bastion-vm \
+  --zone=${GCP_ZONE} \
+  --project=${GCP_PROJECT}
+
+# Or via IAP tunnel
+gcloud compute ssh ${CLUSTERNAME}-bastion-vm \
+  --zone=${GCP_ZONE} \
+  --project=${GCP_PROJECT} \
+  --tunnel-through-iap
 ```
 
-#### 4. Configure Identity Provider 
-Since OAuth endpoints are not accessible from the internet, you must configure an IdP from your local machine:
+### Via Landing Zone Proxy (Hub-Spoke)
 
-**From your local browser:**
-1. Go to https://console.redhat.com
-2. Find your cluster
-3. Navigate to "Access control" → "Identity providers"
-4. Add an IdP (recommended: htpasswd for quick setup)
-   - Click "Add identity provider" → "HTPasswd"
-   - Give it a name (e.g., "cluster-admin")
-   - Add users with passwords
-5. Grant admin access:
-   - Go to "Access control" → "Cluster roles and access"
-   - Click "Add user"
-   - Select your user and assign "cluster-admin" role
+After cluster deployment, configure DNS peering:
 
-#### 5. Access your cluster from bastion
 ```bash
-# login to OCM from bastion (use device code since no browser)
-ocm login --use-device-code
-# follow the instructions to authenticate via your local browser
-
-# example direct login with your htpasswd credentials
-oc login https://api.${CLUSTERNAME}.<domain>.openshiftapps.com:6443 \
-  --username=<your-htpasswd-username> \
-  --password=<your-htpasswd-password> \
-  --insecure-skip-tls-verify=true
+./scripts/setup-vpc-infrastructure.sh -p my-project -r us-central1 -c my-cluster --configure-dns
 ```
 
-#### 6. Verify successful deployment
-```bash
-# check you're logged in correctly
-oc whoami
-# output: <your-htpasswd-username>
+Then SSH to the proxy:
 
-# verify all nodes are ready
+```bash
+gcloud compute ssh landing-zone-proxy \
+  --zone=${GCP_ZONE}-a \
+  --project=${GCP_PROJECT} \
+  --tunnel-through-iap
+```
+
+### Cluster Login
+
+```bash
+# Configure IdP first at https://console.redhat.com
+
+# Login to cluster
+oc login https://api.${CLUSTERNAME}.${DOMAIN}.openshiftapps.com:6443 \
+  --username=<your-username> \
+  --password=<your-password>
+
+# Verify access
 oc get nodes
-# output should show all nodes in Ready state:
-# NAME                                          STATUS   ROLES                  AGE
-# osd-psc-wif-xxxxx-master-0.c.project.internal   Ready    control-plane,master   4h
-# osd-psc-wif-xxxxx-master-1.c.project.internal   Ready    control-plane,master   4h
-# osd-psc-wif-xxxxx-master-2.c.project.internal   Ready    control-plane,master   4h
-# osd-psc-wif-xxxxx-worker-a-xxxxx...             Ready    worker                 4h
-
-# confirm PSC and API server pods are running
-oc get pods -A | grep -E "(psc|apiserver)"
-# should show multiple pods in Running state
-
-# check the API service endpoint
-oc get svc -n openshift-kube-apiserver
-# should show the kubernetes service with ClusterIP
+oc get clusterversion
 ```
 
-### Important PSC Notes
+## Cleanup
 
-**CIDR Planning is Critical**:
-- PSC subnet MUST be within Machine CIDR range (master + worker combined)
-- PSC subnet requires /29 or larger
-- Plan your CIDR allocations carefully - overlapping ranges will cause deployment failures
-
-**Network Access**:
-- OAuth endpoints only accessible from private network (not from internet)
-- Configure identity provider before attempting cluster access (do this via console)
-- Bastion host is required for private cluster management
-
-**Firewall Rules and Tags**:
-- OSD adds random suffixes to instance tags (e.g., `osd-cluster-name-abc123-worker`)
-- Terraform firewall rules now use IP ranges instead of tags to ensure connectivity
-- This avoids issues where Terraform-defined tags don't match OSD-created instance tags
-
-**Cluster Naming**:
-- Ensure the cluster name used in `ocm create cluster` matches your Terraform `clustername` variable
-- Consistency is important for resource naming and identification
-
-### Troubleshooting
-
-#### API Connection Timeout from Bastion
-
-If you cannot reach the API from the bastion:
-
-1. **Verify firewall rules are in correct VPC**:
 ```bash
-# find which VPC your cluster is in
-VPC_NAME=$(gcloud compute instances describe <master-instance-name> --zone=${ZONE} --format="value(networkInterfaces[0].network.segment(-1))")
+# Destroy cluster and infrastructure
+terraform destroy
 
-# list firewall rules for that VPC
-gcloud compute firewall-rules list --filter="network:${VPC_NAME}"
+# For hub-spoke: Also cleanup landing zone
+./scripts/setup-vpc-infrastructure.sh -p my-project -r us-central1 -c my-cluster --delete
 ```
 
-2. **Check if bastion can reach masters**:
-```bash
-# from bastion, test master IPs directly
-for ip in 10.0.0.3 10.0.0.4 10.0.0.5; do
-  timeout 2 nc -zv $ip 6443 && echo "$ip: OK" || echo "$ip: FAILED"
-done
+## Directory Structure
+
+```
+terraform-google-osd/
+├── main.tf                    # Main Terraform configuration
+├── variables.tf               # Variable definitions
+├── outputs.tf                 # Output definitions
+├── terraform.tfvars           # Your configuration (gitignored)
+├── terraform.tfvars.example   # Example configuration
+├── modules/
+│   ├── vpc/                   # VPC, subnets, router, NAT
+│   ├── psc/                   # Private Service Connect resources
+│   ├── bastion/               # Bastion host
+│   └── machine-pool/          # Additional machine pools
+├── templates/
+│   ├── clusterinstall.tftpl   # Cluster installation script
+│   ├── clusterdestroy.tftpl   # Cluster destruction script
+│   └── wif*.tftpl             # WIF management scripts
+├── scripts/
+│   ├── setup-vpc-infrastructure.sh  # Hub-spoke VPC setup
+│   └── check-prereqs.sh       # Prerequisites checker
+├── assets/                    # Architecture diagrams
+├── state/                     # Local state files (gitignored)
+└── output/                    # Plan files (gitignored)
 ```
 
-3. **Common issues and solutions**:
+## Troubleshooting
+
+### Common Issues
 
 | Issue | Cause | Solution |
 |-------|-------|----------|
-| Can't reach API from bastion | Firewall rules using wrong tags | Use IP-based rules (implemented in this repo) |
-| 403 Forbidden from API | Normal - not authenticated | Configure IdP and login |
-| DNS not resolving | Private DNS configuration | Check /etc/hosts or PSC DNS zones |
-| Cluster name mismatch | Terraform var != OCM cluster name | Ensure `TF_VAR_clustername` matches |
+| Subnet CIDR outside machine CIDR | Mismatched CIDRs | Ensure all subnets are within `machine_cidr` |
+| OCM session expired | Token expired | Run `ocm login --token=<token>` |
+| Can't reach API from bastion | Firewall/DNS | Check firewall rules, verify DNS resolution |
+| Cluster stuck in installing | Various | Check OCM console for detailed errors |
+| PSC validation failed | Wrong CIDR ranges | Ensure PSC subnet is within machine CIDR |
 
-### Architecture Details
+### Checking Cluster Status
 
-With PSC enabled:
-- Red Hat SRE access is provided through PSC service attachments
-- No public IPs or NAT gateways required
-- All traffic remains within Google's network
-- Cluster API server only accessible via private endpoints
-- Google APIs accessed through private PSC endpoints instead of public internet
+```bash
+# Via OCM CLI
+ocm get /api/clusters_mgmt/v1/clusters --parameter search="name = 'my-cluster'" | \
+  jq '.items[0] | {name, state, status: .status.description}'
 
-For more details, see:
-- [Private Service Connect overview](https://docs.openshift.com/dedicated/osd_gcp_clusters/creating-a-gcp-psc-enabled-private-cluster.html)
-- [OpenShift Dedicated on GCP architecture models](https://docs.redhat.com/en/documentation/openshift_dedicated/4/html/architecture/osd-architecture-models-gcp)
-- [Configuring IDP](https://docs.redhat.com/en/documentation/openshift_dedicated/4/html/authentication_and_authorization/sd-configuring-identity-providers)
-- [Managing administration roles and users](https://docs.redhat.com/en/documentation/openshift_dedicated/4/html/authentication_and_authorization/osd-admin-roles)
+# Via OCM console
+# https://console.redhat.com/openshift
+```
+
+### Logs and Debugging
+
+```bash
+# Terraform debug
+TF_LOG=DEBUG terraform apply
+
+# OCM debug
+ocm get /api/clusters_mgmt/v1/clusters/<cluster-id> | jq '.status'
+```
+
+## References
+
+- [OSD on GCP Documentation](https://docs.openshift.com/dedicated/osd_install_access_delete_cluster/creating-a-gcp-cluster.html)
+- [Private Service Connect](https://docs.openshift.com/dedicated/osd_gcp_clusters/creating-a-gcp-psc-enabled-private-cluster.html)
+- [Workload Identity Federation](https://docs.openshift.com/dedicated/osd_gcp_clusters/creating-a-gcp-cluster-with-workload-identity-federation.html)
+- [GCP CCS Prerequisites](https://docs.openshift.com/dedicated/osd_planning/gcp-ccs.html)
+- [PSC Firewall Prerequisites](https://docs.redhat.com/en/documentation/openshift_dedicated/4/html-single/planning_your_environment/index#osd-gcp-psc-firewall-prerequisites_gcp-ccs)
+
+## License
+
+Apache 2.0

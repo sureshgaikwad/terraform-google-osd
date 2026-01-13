@@ -146,9 +146,9 @@ PEERING_LZ_TO_OSD="landing-zone-to-osd"
 # CIDR ranges
 LZ_SUBNET_CIDR="10.100.0.0/24"
 LZ_PROXY_IP="10.100.0.10"  # Static internal IP for proxy
-OSD_MASTER_CIDR="10.0.0.0/19"
-OSD_WORKER_CIDR="10.0.32.0/19"
-OSD_PSC_CIDR="10.0.64.0/29"
+OSD_MASTER_CIDR="10.92.0.0/27"
+OSD_WORKER_CIDR="10.92.32.0/19"
+OSD_PSC_CIDR="10.92.64.0/29"
 OSD_BASTION_CIDR="10.10.0.0/24"
 
 # Proxy settings
@@ -190,25 +190,6 @@ ALLOWED_DOMAINS=(
     "oauth2.googleapis.com"
     "accounts.google.com"
     # Container Registries
-    ".docker.io"
-    ".docker.com"
-    "registry-1.docker.io"
-    "auth.docker.io"
-    "production.cloudflare.docker.com"
-    # GitHub (for operators and tools)
-    ".github.com"
-    ".githubusercontent.com"
-    "github.com"
-    "raw.githubusercontent.com"
-    "objects.githubusercontent.com"
-    # Cloud CDNs and Object Storage (for image layers)
-    ".cloudfront.net"
-    ".amazonaws.com"
-    ".s3.amazonaws.com"
-    ".azure.com"
-    ".azurecr.io"
-    ".windows.net"
-    # OpenShift Telemetry and Updates
     "registry.connect.redhat.com"
     "registry.access.redhat.com"
     # Operator Hub

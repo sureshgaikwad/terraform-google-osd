@@ -95,31 +95,45 @@ EOF
 }
 
 
+variable "machine_cidr" {
+  type        = string
+  description = <<EOF
+The overall IP address range for cluster machines.
+All subnet CIDRs (master, worker, PSC) must be within this range.
+This is passed to OCM as --machine-cidr.
+
+If not specified, OCM uses default "10.0.0.0/16".
+Only set this if your subnets are outside 10.0.0.0/16 range.
+Example: "10.92.0.0/16" for subnets in 10.92.x.x range
+EOF
+  default     = ""
+}
+
 variable "master_cidr_block" {
   type        = string
   description = <<EOF
-The IP address space from which to assign machine IPs.
-Default "10.0.0.0/17"
+The IP address space for the control plane (master) subnet.
+Must be within the machine_cidr range.
+Example: "10.92.0.0/27"
 EOF
-  default     = "10.0.0.0/17"
 }
 
 variable "worker_cidr_block" {
   type        = string
   description = <<EOF
-The IP address space from which to assign machine IPs.
-Default "10.0.128.0/17"
+The IP address space for the compute (worker) subnet.
+Must be within the machine_cidr range.
+Example: "10.92.32.0/19"
 EOF
-  default     = "10.0.128.0/17"
 }
 
 variable "bastion_cidr_block" {
   type        = string
   description = <<EOF
-The IP address space from which to deploy the bastion / jumphost.
-Default "10.0.128.0/17"
+The IP address space for the bastion / jumphost subnet.
+Can be outside machine_cidr as it's a separate network.
+Example: "10.10.0.0/24"
 EOF
-  default     = "10.0.128.0/17"
 }
 
 variable "enable_osd_gcp_bastion" {
@@ -210,20 +224,18 @@ variable "psc_subnet_cidr_block" {
   type        = string
   description = <<EOF
 The IP address space for PSC endpoints subnet.
-Must be /29 or larger and within the Machine CIDR range.
-Default "10.0.0.248/29"
+Must be /29 or larger and within the machine_cidr range.
+Example: "10.92.64.0/29"
 EOF
-  default     = "10.0.0.248/29"  
 }
 
 variable "psc_endpoint_address" {
   type        = string
   description = <<EOF
 The IP address for the PSC Google APIs endpoint.
-Must be within your Machine CIDR range but outside all subnets.
-Example: If your subnets are in 10.92.x.x, use something like "10.92.255.100"
+Must be within your machine_cidr range but outside all subnets.
+Example: "10.92.100.100"
 EOF
-  default     = "10.0.255.100"
 }
 
 variable "enable_psc_endpoints" {
@@ -358,6 +370,30 @@ Run `ocm list machine-types --provider gcp` to see available types.
 If not set, OCM uses the default instance type.
 EOF
   default     = ""
+}
+
+variable "cluster_version" {
+  type        = string
+  description = <<EOF
+OpenShift version to install.
+If not specified, the latest available version will be used.
+
+To list available versions, run:
+  ocm list versions --channel-group stable
+
+Examples:
+  - "4.14.10"      - Specific version
+  - "4.14"         - Latest 4.14.x version
+  - ""             - Latest available version (default)
+
+Note: Only versions available in OCM for GCP OSD are valid.
+EOF
+  default     = ""
+
+  validation {
+    condition     = var.cluster_version == "" || can(regex("^[0-9]+\\.[0-9]+(\\.[0-9]+)?$", var.cluster_version))
+    error_message = "cluster_version must be empty or a valid version format (e.g., '4.14' or '4.14.10')."
+  }
 }
 
 # ============================================

@@ -1,0 +1,324 @@
+# =============================================================================
+# OpenShift Dedicated on GCP - Terraform Configuration
+# =============================================================================
+# 
+# QUICK START:
+#   1. Copy this file: cp terraform.tfvars.example terraform.tfvars
+#   2. Edit terraform.tfvars with your values
+#   3. Run: terraform init && terraform apply
+#
+# MINIMUM REQUIRED VARIABLES:
+#   - gcp_project, gcp_region, gcp_zone
+#   - clustername
+#   - gcp_authentication_type
+#   - machine_cidr, master_cidr_block, worker_cidr_block
+#   - psc_subnet_cidr_block, bastion_cidr_block (even if not using PSC/bastion)
+#
+# =============================================================================
+
+
+# =============================================================================
+# REQUIRED: GCP Project Settings
+# =============================================================================
+
+gcp_project = "your-gcp-project-id"
+gcp_region  = "us-central1"
+gcp_zone    = "us-central1-a"
+
+
+# =============================================================================
+# REQUIRED: Cluster Settings
+# =============================================================================
+
+# Cluster name - used as prefix for all resources
+clustername = "my-osd-cluster"
+
+# OpenShift version (leave empty for latest)
+# Run: ocm list versions --channel-group stable
+# cluster_version = "4.14"
+
+
+# =============================================================================
+# REQUIRED: Authentication
+# =============================================================================
+# Options: "workload_identity_federation" (recommended) or "service_account"
+
+gcp_authentication_type = "workload_identity_federation"
+
+# For service_account auth, uncomment:
+# gcp_sa_file_loc = "~/.ssh/osd-ccs-admin.json"
+
+# To use existing WIF instead of creating new:
+# use_existing_wif         = true
+# existing_wif_config_name = "my-existing-wif"
+
+
+# =============================================================================
+# REQUIRED: Network CIDRs
+# =============================================================================
+# IMPORTANT: All subnet CIDRs must be within machine_cidr range
+# 
+# Example allocation for 10.0.0.0/16:
+#   machine_cidr          = "10.0.0.0/16"      # Overall range
+#   master_cidr_block     = "10.0.0.0/19"      # 10.0.0.0 - 10.0.31.255
+#   worker_cidr_block     = "10.0.32.0/19"     # 10.0.32.0 - 10.0.63.255
+#   psc_subnet_cidr_block = "10.0.64.0/29"     # 10.0.64.0 - 10.0.64.7
+#   psc_endpoint_address  = "10.0.100.100"     # Single IP, outside subnets
+#   bastion_cidr_block    = "10.10.0.0/24"     # Can be outside machine_cidr
+
+machine_cidr          = "10.0.0.0/16"
+master_cidr_block     = "10.0.0.0/19"
+worker_cidr_block     = "10.0.32.0/19"
+psc_subnet_cidr_block = "10.0.64.0/29"
+psc_endpoint_address  = "10.0.100.100"
+bastion_cidr_block    = "10.10.0.0/24"
+
+
+# =============================================================================
+# Cluster Type
+# =============================================================================
+
+# Private cluster (no public endpoints)
+osd_gcp_private = false
+
+# Private Service Connect (enhanced private connectivity)
+osd_gcp_psc = false
+
+
+# =============================================================================
+# VPC Configuration
+# =============================================================================
+
+# Create new VPC (default) or use existing
+use_existing_vpc = false
+vpc_routing_mode = "REGIONAL"
+
+# For existing VPC, uncomment and configure:
+# use_existing_vpc            = true
+# existing_vpc_name           = "my-existing-vpc"
+# existing_master_subnet_name = "my-master-subnet"
+# existing_worker_subnet_name = "my-worker-subnet"
+# existing_psc_subnet_name    = "my-psc-subnet"
+# existing_router_name        = "my-router"
+
+
+# =============================================================================
+# NAT Gateway
+# =============================================================================
+# Set to false for hub-spoke architecture with proxy
+
+enable_nat_gateway = true
+
+
+# =============================================================================
+# Proxy Configuration (Hub-Spoke Architecture)
+# =============================================================================
+# Required when enable_nat_gateway = false
+
+# http_proxy  = "http://10.100.0.10:3128"
+# https_proxy = "http://10.100.0.10:3128"
+# no_proxy    = "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,169.254.169.254"
+# additional_trust_bundle = "/path/to/ca-bundle.pem"
+
+
+# =============================================================================
+# Multi-AZ Configuration
+# =============================================================================
+
+# Comma-separated zones (leave empty for single-zone)
+# gcp_availability_zones = "us-central1-a,us-central1-b,us-central1-c"
+
+# Worker node count (for multi-AZ: must be multiple of zone count)
+# compute_nodes_count = 3
+
+# Worker node instance type
+# Run: ocm list machine-types --provider gcp
+# compute_machine_type = "n2-standard-8"
+
+
+# =============================================================================
+# Bastion Host
+# =============================================================================
+
+enable_osd_gcp_bastion = false
+bastion_machine_type   = "e2-micro"
+bastion_key_loc        = "~/.ssh/id_rsa.pub"
+
+
+# =============================================================================
+# Additional Machine Pools
+# =============================================================================
+# Created after cluster is ready
+
+additional_machine_pools = []
+
+# Example with multiple pools:
+# additional_machine_pools = [
+#   {
+#     name          = "large"
+#     instance_type = "n2-standard-16"
+#     replicas      = 2
+#     labels        = { "workload-type" = "large" }
+#   },
+#   {
+#     name         = "autoscale"
+#     instance_type = "n2-standard-8"
+#     min_replicas = 1
+#     max_replicas = 10
+#     labels       = { "workload-type" = "autoscale" }
+#     taints = [
+#       { key = "dedicated", value = "autoscale", effect = "NoSchedule" }
+#     ]
+#   }
+# ]
+
+
+# =============================================================================
+# Advanced Options
+# =============================================================================
+
+# Deploy only infrastructure, skip cluster creation
+only_deploy_infra_no_osd = false
+
+# Custom domain prefix for cluster URLs
+# domain_prefix = "my-custom-prefix"
+
+
+# =============================================================================
+# COMPLETE EXAMPLES
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Example 1: Public Cluster (Simplest)
+# -----------------------------------------------------------------------------
+# gcp_project             = "my-project"
+# gcp_region              = "us-central1"
+# gcp_zone                = "us-central1-a"
+# clustername             = "my-public-cluster"
+# gcp_authentication_type = "workload_identity_federation"
+#
+# machine_cidr          = "10.0.0.0/16"
+# master_cidr_block     = "10.0.0.0/19"
+# worker_cidr_block     = "10.0.32.0/19"
+# psc_subnet_cidr_block = "10.0.64.0/29"
+# psc_endpoint_address  = "10.0.100.100"
+# bastion_cidr_block    = "10.10.0.0/24"
+#
+# osd_gcp_private = false
+# osd_gcp_psc     = false
+
+# -----------------------------------------------------------------------------
+# Example 2: Private Cluster with PSC and Bastion
+# -----------------------------------------------------------------------------
+# gcp_project             = "my-project"
+# gcp_region              = "us-central1"
+# gcp_zone                = "us-central1-a"
+# clustername             = "my-private-cluster"
+# gcp_authentication_type = "workload_identity_federation"
+#
+# machine_cidr          = "10.0.0.0/16"
+# master_cidr_block     = "10.0.0.0/19"
+# worker_cidr_block     = "10.0.32.0/19"
+# psc_subnet_cidr_block = "10.0.64.0/29"
+# psc_endpoint_address  = "10.0.100.100"
+# bastion_cidr_block    = "10.10.0.0/24"
+#
+# osd_gcp_private        = true
+# osd_gcp_psc            = true
+# enable_osd_gcp_bastion = true
+
+# -----------------------------------------------------------------------------
+# Example 3: Multi-AZ Private Cluster
+# -----------------------------------------------------------------------------
+# gcp_project              = "my-project"
+# gcp_region               = "us-central1"
+# gcp_zone                 = "us-central1-a"
+# clustername              = "my-multiaz-cluster"
+# gcp_authentication_type  = "workload_identity_federation"
+# gcp_availability_zones   = "us-central1-a,us-central1-b,us-central1-c"
+# compute_nodes_count      = 3
+# compute_machine_type     = "n2-standard-8"
+#
+# machine_cidr          = "10.0.0.0/16"
+# master_cidr_block     = "10.0.0.0/19"
+# worker_cidr_block     = "10.0.32.0/19"
+# psc_subnet_cidr_block = "10.0.64.0/29"
+# psc_endpoint_address  = "10.0.100.100"
+# bastion_cidr_block    = "10.10.0.0/24"
+#
+# osd_gcp_private        = true
+# osd_gcp_psc            = true
+# enable_osd_gcp_bastion = true
+
+# -----------------------------------------------------------------------------
+# Example 4: Hub-Spoke with Proxy (Fully Private)
+# -----------------------------------------------------------------------------
+# First run: ./scripts/setup-vpc-infrastructure.sh -p my-project -r us-central1 -c my-cluster
+#
+# gcp_project             = "my-project"
+# gcp_region              = "us-central1"
+# gcp_zone                = "us-central1-a"
+# clustername             = "my-cluster"
+# gcp_authentication_type = "workload_identity_federation"
+# gcp_availability_zones  = "us-central1-a,us-central1-b,us-central1-c"
+# compute_nodes_count     = 3
+#
+# # CIDRs matching setup script (10.92.x.x range)
+# machine_cidr          = "10.92.0.0/16"
+# master_cidr_block     = "10.92.0.0/27"
+# worker_cidr_block     = "10.92.32.0/19"
+# psc_subnet_cidr_block = "10.92.64.0/29"
+# psc_endpoint_address  = "10.92.100.100"
+# bastion_cidr_block    = "10.10.0.0/24"
+#
+# # Use existing VPC from setup script
+# use_existing_vpc            = true
+# existing_vpc_name           = "my-cluster-vpc"
+# existing_master_subnet_name = "my-cluster-master-subnet"
+# existing_worker_subnet_name = "my-cluster-worker-subnet"
+# existing_psc_subnet_name    = "my-cluster-psc-subnet"
+# existing_router_name        = "my-cluster-router"
+#
+# # No NAT - using proxy
+# enable_nat_gateway = false
+#
+# # Proxy in landing zone
+# http_proxy  = "http://10.100.0.10:3128"
+# https_proxy = "http://10.100.0.10:3128"
+# no_proxy    = "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,169.254.169.254"
+#
+# osd_gcp_private        = true
+# osd_gcp_psc            = true
+# enable_osd_gcp_bastion = false  # Bastion is in landing zone VPC
+
+# -----------------------------------------------------------------------------
+# Example 5: With Additional Machine Pools
+# -----------------------------------------------------------------------------
+# gcp_project             = "my-project"
+# gcp_region              = "us-central1"
+# gcp_zone                = "us-central1-a"
+# clustername             = "my-cluster"
+# gcp_authentication_type = "workload_identity_federation"
+#
+# machine_cidr          = "10.0.0.0/16"
+# master_cidr_block     = "10.0.0.0/19"
+# worker_cidr_block     = "10.0.32.0/19"
+# psc_subnet_cidr_block = "10.0.64.0/29"
+# psc_endpoint_address  = "10.0.100.100"
+# bastion_cidr_block    = "10.10.0.0/24"
+#
+# additional_machine_pools = [
+#   {
+#     name          = "large-workloads"
+#     instance_type = "n2-standard-16"
+#     replicas      = 2
+#     labels        = { "workload-type" = "large" }
+#   },
+#   {
+#     name          = "memory-intensive"
+#     instance_type = "n2-highmem-8"
+#     min_replicas  = 1
+#     max_replicas  = 5
+#     labels        = { "workload-type" = "memory" }
+#   }
+# ]
