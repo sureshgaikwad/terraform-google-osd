@@ -13,7 +13,7 @@ terraform.tfvars.user
 *.tfstate
 *.tfstate.*
 *.terraform.lock*
-state/.*
+state/*
 
 # Plan output files
 output/tf*
