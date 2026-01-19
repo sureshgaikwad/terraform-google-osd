@@ -14,7 +14,7 @@ terraform.tfvars.user
 *.tfstate.*
 *.terraform.lock*
 state/*
-
+scripts/*
 # Plan output files
 output/tf*
 *tfplan*
