@@ -29,6 +29,54 @@ provider "google" {
 data "google_client_openid_userinfo" "me" {}
 
 # =============================================================================
+# Required GCP APIs
+# =============================================================================
+
+locals {
+  required_gcp_services = [
+    "deploymentmanager.googleapis.com",
+    "compute.googleapis.com",
+    "cloudapis.googleapis.com",
+    "cloudresourcemanager.googleapis.com",
+    "dns.googleapis.com",
+    "networksecurity.googleapis.com",
+    "iamcredentials.googleapis.com",
+    "iam.googleapis.com",
+    "servicemanagement.googleapis.com",
+    "serviceusage.googleapis.com",
+    "storage-api.googleapis.com",
+    "storage-component.googleapis.com",
+    "orgpolicy.googleapis.com",
+    "iap.googleapis.com",
+  ]
+}
+
+resource "google_project_service" "required" {
+  for_each           = toset(local.required_gcp_services)
+  project            = var.gcp_project
+  service            = each.value
+  disable_on_destroy = false
+}
+
+# =============================================================================
+# OCM Login (non-interactive)
+# =============================================================================
+
+resource "shell_script" "ocm_login" {
+  lifecycle_commands {
+    create = templatefile(
+      "${path.module}/templates/ocmlogin.tftpl",
+      {
+        ocm_token = var.ocm_token
+        ocm_url   = var.ocm_url
+      }
+    )
+    delete = "true"
+    read   = "true"
+  }
+}
+
+# =============================================================================
 # VPC Module
 # =============================================================================
 
@@ -39,6 +87,8 @@ module "vpc" {
   region       = var.gcp_region
   cluster_name = var.clustername
   routing_mode = var.vpc_routing_mode
+
+  depends_on = [google_project_service.required]
 
   # Existing VPC configuration
   use_existing_vpc            = var.use_existing_vpc
@@ -76,7 +126,7 @@ module "psc" {
   # Existing PSC subnet (when using existing VPC)
   existing_psc_subnet_name = var.existing_psc_subnet_name
 
-  depends_on = [module.vpc]
+  depends_on = [module.vpc, google_project_service.required]
 }
 
 # =============================================================================
@@ -100,7 +150,7 @@ module "bastion" {
   ssh_key_path = var.bastion_key_loc
   user_email   = data.google_client_openid_userinfo.me.email
 
-  depends_on = [module.vpc]
+  depends_on = [module.vpc, google_project_service.required]
 }
 
 # =============================================================================
@@ -131,6 +181,8 @@ resource "shell_script" "wif_create" {
       }
     )
   }
+
+  depends_on = [google_project_service.required, shell_script.ocm_login]
 }
 
 # =============================================================================
@@ -184,7 +236,9 @@ resource "shell_script" "cluster_install" {
   depends_on = [
     module.vpc,
     module.psc,
-    shell_script.wif_create
+    shell_script.wif_create,
+    google_project_service.required,
+    shell_script.ocm_login
   ]
 }
 

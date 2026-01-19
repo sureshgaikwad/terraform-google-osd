@@ -35,7 +35,7 @@ clustername = "my-osd-cluster"
 
 # OpenShift version (leave empty for latest)
 # Run: ocm list versions --channel-group stable
-# cluster_version = "4.14"
+cluster_version = ""  # e.g., "4.14" or "4.14.10" for specific version
 
 
 # =============================================================================
@@ -44,6 +44,10 @@ clustername = "my-osd-cluster"
 # Options: "workload_identity_federation" (recommended) or "service_account"
 
 gcp_authentication_type = "workload_identity_federation"
+
+# Optional: OCM offline token for non-interactive login
+# Get a token from: https://console.redhat.com/openshift/token
+# ocm_token = "your-ocm-offline-token"
 
 # For service_account auth, uncomment:
 # gcp_sa_file_loc = "~/.ssh/osd-ccs-admin.json"

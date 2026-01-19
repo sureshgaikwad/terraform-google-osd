@@ -1,0 +1,21 @@
+#!/bin/bash
+
+set -euo pipefail
+
+if ! command -v ocm &> /dev/null; then
+  echo "ERROR: ocm CLI is not installed. Please install it first."
+  exit 1
+fi
+
+if ocm whoami &> /dev/null; then
+  exit 0
+fi
+
+if [[ -z "${ocm_token}" ]]; then
+  echo "ERROR: OCM not logged in and no ocm_token provided."
+  echo "       Set ocm_token in terraform.tfvars or login manually:"
+  echo "       ocm login --token=<your-token-from-console.redhat.com>"
+  exit 1
+fi
+
+ocm login --token="${ocm_token}" --url="${ocm_url}"

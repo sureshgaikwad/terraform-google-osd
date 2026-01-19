@@ -67,6 +67,9 @@ ocm login --token=<your-token>
 # Get token from: https://console.redhat.com/openshift/token
 ```
 
+Optional: you can also provide `ocm_token` in `terraform.tfvars` to let Terraform
+perform a non-interactive login before cluster creation.
+
 ## Quick Start
 
 ### 1. Clone and Configure

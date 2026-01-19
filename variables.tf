@@ -172,6 +172,27 @@ variable "gcp_sa_file_loc" {
   description = "Path to private json for OSD on GCP Admin Service Account"
 }
 
+# ============================================
+# OCM Authentication (non-interactive login)
+# ============================================
+
+variable "ocm_token" {
+  type        = string
+  description = <<EOF
+Offline access token for OCM login.
+If empty, Terraform expects you to be already logged in (ocm whoami succeeds).
+Get a token from: https://console.redhat.com/openshift/token
+EOF
+  default   = ""
+  sensitive = true
+}
+
+variable "ocm_url" {
+  type        = string
+  description = "OCM API URL for login (default is production)."
+  default     = "https://api.openshift.com"
+}
+
 variable "only_deploy_infra_no_osd" {
   description = "If set to true, only the networking infra will be deployed, not the OSD in GCP cluster"
   type        = bool
